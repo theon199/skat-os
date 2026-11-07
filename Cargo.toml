@@ -1,0 +1,17 @@
+[package]
+name = "skat-os"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+crossterm = "0.29.0"
+fuzzy-matcher = "0.3.7"
+ratatui = "0.30.2"
+regex = "1.13.1"
+ropey = "1.6.1"
+tokio = { version = "1.54.1", features = ["full"] }
+walkdir = "2.5.0"
+
+[dev-dependencies]
+tempfile = "3.27.0"
