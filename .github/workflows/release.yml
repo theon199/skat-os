@@ -65,6 +65,40 @@ jobs:
         run: |
           curl -L --proto '=https' --tlsv1.2 -sSf https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-musl.tar.gz | tar -xz -C ~/.cargo/bin
 
+      # The Windows build step uses Git Bash, whose /usr/bin/perl shadows the
+      # runner's Strawberry Perl. OpenSSL's Configure then fails looking for
+      # Locale::Maketext::Simple. Pin perl via OPENSSL_SRC_PERL, and install
+      # NASM so openssl-src can enable assembly instead of passing no-asm.
+      - name: Prepare vendored OpenSSL build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $perl = 'C:\Strawberry\perl\bin\perl.exe'
+          if (-not (Test-Path $perl)) {
+            choco install strawberryperl --no-progress -y
+            if ($LASTEXITCODE -eq 3010) { $global:LASTEXITCODE = 0 }
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          if (-not (Test-Path $perl)) {
+            throw "Strawberry Perl was not found at $perl"
+          }
+          & $perl -MLocale::Maketext::Simple -e "exit 0"
+          "OPENSSL_SRC_PERL=C:/Strawberry/perl/bin/perl.exe" >> $env:GITHUB_ENV
+
+          choco install nasm --no-progress -y
+          if ($LASTEXITCODE -eq 3010) { $global:LASTEXITCODE = 0 }
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "NASM install failed (exit $LASTEXITCODE); OpenSSL will build with no-asm"
+            $global:LASTEXITCODE = 0
+          }
+          $nasmDir = @(
+            'C:\Program Files\NASM',
+            'C:\Program Files (x86)\NASM'
+          ) | Where-Object { Test-Path "$_\nasm.exe" } | Select-Object -First 1
+          if ($nasmDir) {
+            $nasmDir >> $env:GITHUB_PATH
+          }
+
       - name: Build release binary
         run: |
           if [ "${{ matrix.use_cross }}" = "true" ]; then

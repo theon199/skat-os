@@ -44,6 +44,26 @@ jobs:
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
 
+      # ssh2's vendored-openssl feature builds OpenSSL from source. On Windows,
+      # Git's MSYS perl is earlier on PATH than Strawberry Perl and lacks
+      # Locale::Maketext::Simple, so Configure fails. openssl-src honors
+      # OPENSSL_SRC_PERL.
+      - name: Use Strawberry Perl for vendored OpenSSL
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $perl = 'C:\Strawberry\perl\bin\perl.exe'
+          if (-not (Test-Path $perl)) {
+            choco install strawberryperl --no-progress -y
+            if ($LASTEXITCODE -eq 3010) { $global:LASTEXITCODE = 0 }
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          if (-not (Test-Path $perl)) {
+            throw "Strawberry Perl was not found at $perl"
+          }
+          & $perl -MLocale::Maketext::Simple -e "exit 0"
+          "OPENSSL_SRC_PERL=C:/Strawberry/perl/bin/perl.exe" >> $env:GITHUB_ENV
+
       - name: Check code formatting
         run: cargo fmt --check
 
