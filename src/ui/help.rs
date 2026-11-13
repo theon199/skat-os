@@ -49,10 +49,14 @@ impl HelpView {
                 Span::raw("Quit skat-os"),
             ]),
             Line::from(""),
-            Line::from(Span::styled("Document Editing", Theme::TITLE_ACTIVE)),
+            Line::from(Span::styled("Document Editing & Playbooks", Theme::TITLE_ACTIVE)),
             Line::from(vec![
                 Span::styled("  Standard typing", Theme::MD_H2),
                 Span::raw("Intuitive modeless editing (VS Code / Nano style)"),
+            ]),
+            Line::from(vec![
+                Span::styled("  Space         ", Theme::MD_H2),
+                Span::raw("Toggle task checklist item (- [ ] <-> - [x])"),
             ]),
             Line::from(vec![
                 Span::styled("  Ctrl+S        ", Theme::MD_H2),
@@ -67,14 +71,26 @@ impl HelpView {
                 Span::raw("Redo last edit"),
             ]),
             Line::from(""),
-            Line::from(Span::styled("Executable Code Blocks", Theme::TITLE_ACTIVE)),
+            Line::from(Span::styled("Playbook Execution & Code Blocks", Theme::TITLE_ACTIVE)),
             Line::from(vec![
                 Span::styled("  Ctrl+R        ", Theme::MD_H2),
-                Span::raw("Execute code block under cursor (bash, python, node, sh)"),
+                Span::raw("Execute code block under cursor (interpolates previous outputs)"),
+            ]),
+            Line::from(vec![
+                Span::styled("  Ctrl+Shift+R  ", Theme::MD_H2),
+                Span::raw("Run All Blocks sequentially (Playbook execution, F5)"),
+            ]),
+            Line::from(vec![
+                Span::styled("  Ctrl+C        ", Theme::MD_H2),
+                Span::raw("Interrupt / cancel live streaming command ([interrupted])"),
             ]),
             Line::from(vec![
                 Span::styled("  Ctrl+O        ", Theme::MD_H2),
                 Span::raw("Collapse or expand command output block"),
+            ]),
+            Line::from(vec![
+                Span::styled("  {{name.stdout}}", Theme::MD_H3),
+                Span::raw("Chain outputs: interpolate prior block stdout or $SKAT_<NAME>_STDOUT"),
             ]),
             Line::from(""),
             Line::from(Span::styled("Wiki Links & Knowledge Graph", Theme::TITLE_ACTIVE)),

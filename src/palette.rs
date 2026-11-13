@@ -9,10 +9,14 @@ pub enum PaletteAction {
     SearchText(String),
     SaveDocument,
     RunCodeBlock,
+    RunAllBlocks,
+    RunUpToCursor,
+    ToggleTaskItem,
     ToggleOutputCollapse,
     ToggleSidebar,
     DeleteDocument(PathBuf),
     ShowHelp,
+    ViewAuditLog,
     Quit,
 }
 
@@ -107,32 +111,7 @@ impl CommandPalette {
             }
         }
 
-        // 2. Offer "Create new document" and "Search in docs"
-        if !q.is_empty() {
-            let doc_name = if q.ends_with(".md") {
-                q.to_string()
-            } else {
-                format!("{}.md", q)
-            };
-
-            // If no document matched, prioritize creating; otherwise place lower
-            let create_score = if document_matched { 50 } else { 1000 };
-            candidates.push(PaletteItem {
-                label: format!("+ Create document: {}", doc_name),
-                subtext: "Create and open new markdown note".to_string(),
-                action: PaletteAction::CreateDocument(doc_name),
-                score: create_score,
-            });
-
-            candidates.push(PaletteItem {
-                label: format!("? Search in docs: \"{}\"", q),
-                subtext: "Find all occurrences across workspace".to_string(),
-                action: PaletteAction::SearchText(q.to_string()),
-                score: 40,
-            });
-        }
-
-        // 3. System actions
+        // 2. System actions
         let system_actions = vec![
             (
                 "💾 Save Document",
@@ -145,6 +124,21 @@ impl CommandPalette {
                 PaletteAction::RunCodeBlock,
             ),
             (
+                "⚡ Run All Blocks (Playbook)",
+                "Execute all code blocks sequentially from top to bottom (Ctrl+Shift+R / F5)",
+                PaletteAction::RunAllBlocks,
+            ),
+            (
+                "⏭ Run Up To Cursor",
+                "Execute all code blocks from line 0 up to current cursor position",
+                PaletteAction::RunUpToCursor,
+            ),
+            (
+                "✓ Toggle Task Checkbox",
+                "Toggle checklist item under cursor [ ] <-> [x] (Space)",
+                PaletteAction::ToggleTaskItem,
+            ),
+            (
                 "▶ Toggle Output Block",
                 "Collapse or expand output block (Ctrl+O)",
                 PaletteAction::ToggleOutputCollapse,
@@ -153,6 +147,11 @@ impl CommandPalette {
                 "📁 Toggle Sidebar",
                 "Show/hide file and backlinks sidebar (Ctrl+B)",
                 PaletteAction::ToggleSidebar,
+            ),
+            (
+                "📜 View Audit Log",
+                "View immutable execution audit trail timeline and cryptographic hash verification",
+                PaletteAction::ViewAuditLog,
             ),
             (
                 "❓ Help & Keybindings",
@@ -166,14 +165,18 @@ impl CommandPalette {
             ),
         ];
 
+        let mut system_matched = false;
         for (label, subtext, action) in system_actions {
             let score = if q.is_empty() {
                 Some(10)
             } else {
-                self.matcher.fuzzy_match(label, q)
+                self.matcher.fuzzy_match(label, q).map(|s| s + 200)
             };
 
             if let Some(s) = score {
+                if !q.is_empty() {
+                    system_matched = true;
+                }
                 candidates.push(PaletteItem {
                     label: label.to_string(),
                     subtext: subtext.to_string(),
@@ -181,6 +184,31 @@ impl CommandPalette {
                     score: s,
                 });
             }
+        }
+
+        // 3. Offer "Create new document" and "Search in docs"
+        if !q.is_empty() {
+            let doc_name = if q.ends_with(".md") {
+                q.to_string()
+            } else {
+                format!("{}.md", q)
+            };
+
+            // If a document or system action matched, prioritize matched item; otherwise place create on top
+            let create_score = if document_matched || system_matched { 50 } else { 1000 };
+            candidates.push(PaletteItem {
+                label: format!("+ Create document: {}", doc_name),
+                subtext: "Create and open new markdown note".to_string(),
+                action: PaletteAction::CreateDocument(doc_name),
+                score: create_score,
+            });
+
+            candidates.push(PaletteItem {
+                label: format!("? Search in docs: \"{}\"", q),
+                subtext: "Find all occurrences across workspace".to_string(),
+                action: PaletteAction::SearchText(q.to_string()),
+                score: 40,
+            });
         }
 
         // Optional delete current document

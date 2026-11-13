@@ -1,6 +1,16 @@
+pub mod ansi;
 pub mod app;
+pub mod audit;
+pub mod chart;
+pub mod cli;
+pub mod collab;
 pub mod editor;
+pub mod form;
+pub mod guard;
+pub mod mesh;
 pub mod palette;
 pub mod runner;
+pub mod table;
 pub mod ui;
+pub mod vault;
 pub mod workspace;

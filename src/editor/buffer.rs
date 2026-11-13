@@ -132,11 +132,61 @@ impl TextBuffer {
         false
     }
 
-    fn char_index_at_cursor(&self) -> usize {
+    pub fn char_index_at_cursor(&self) -> usize {
         let line_start = self.rope.line_to_char(self.cursor_line);
         let line_len = self.line_len(self.cursor_line);
         let col = min(self.cursor_col, line_len);
         line_start + col
+    }
+
+    pub fn char_to_line_col(&self, char_idx: usize) -> (usize, usize) {
+        let total_chars = self.rope.len_chars();
+        let idx = min(char_idx, total_chars);
+        let line = self.rope.char_to_line(idx);
+        let line_start = self.rope.line_to_char(line);
+        let col = idx.saturating_sub(line_start);
+        (line, col)
+    }
+
+    pub fn line_col_to_char(&self, line: usize, col: usize) -> usize {
+        if line >= self.line_count() {
+            return self.rope.len_chars();
+        }
+        let line_start = self.rope.line_to_char(line);
+        let line_len = self.line_len(line);
+        line_start + min(col, line_len)
+    }
+
+    pub fn apply_remote_insert(&mut self, pos: usize, c: char) {
+        let total = self.rope.len_chars();
+        let idx = min(pos, total);
+        let local_cursor_idx = self.char_index_at_cursor();
+
+        self.rope.insert_char(idx, c);
+        self.is_dirty = true;
+
+        // If remote insertion happened before or at our local cursor, shift local cursor
+        if idx <= local_cursor_idx {
+            let (new_line, new_col) = self.char_to_line_col(local_cursor_idx + 1);
+            self.cursor_line = new_line;
+            self.cursor_col = new_col;
+        }
+    }
+
+    pub fn apply_remote_delete(&mut self, pos: usize) {
+        let total = self.rope.len_chars();
+        if pos < total {
+            let local_cursor_idx = self.char_index_at_cursor();
+            self.rope.remove(pos..pos + 1);
+            self.is_dirty = true;
+
+            // If remote deletion happened before our local cursor, shift local cursor back
+            if pos < local_cursor_idx {
+                let (new_line, new_col) = self.char_to_line_col(local_cursor_idx.saturating_sub(1));
+                self.cursor_line = new_line;
+                self.cursor_col = new_col;
+            }
+        }
     }
 
     pub fn insert_char(&mut self, c: char) {
@@ -350,4 +400,157 @@ impl TextBuffer {
             self.scroll_left = self.cursor_col - viewport_width + 1;
         }
     }
+
+    /// Parses a task item prefix like `- [ ]`, `* [ ]`, `- [x]`, `* [X]`
+    pub fn parse_task_item(line: &str) -> Option<TaskItemInfo> {
+        let chars: Vec<char> = line.chars().collect();
+        let len = chars.len();
+        let mut i = 0;
+
+        // Leading whitespace
+        while i < len && (chars[i] == ' ' || chars[i] == '\t') {
+            i += 1;
+        }
+
+        // Bullet marker: '-' or '*'
+        if i >= len || (chars[i] != '-' && chars[i] != '*') {
+            return None;
+        }
+        let marker_col = i;
+        i += 1;
+
+        // Space(s) between marker and '['
+        if i >= len || chars[i] != ' ' {
+            return None;
+        }
+        while i < len && chars[i] == ' ' {
+            i += 1;
+        }
+
+        // Open bracket '['
+        if i >= len || chars[i] != '[' {
+            return None;
+        }
+        let bracket_open_col = i;
+        i += 1;
+
+        // Check character: ' ' or 'x' or 'X'
+        if i >= len {
+            return None;
+        }
+        let check_char = chars[i];
+        let check_char_col = i;
+        let is_checked = match check_char {
+            ' ' => false,
+            'x' | 'X' => true,
+            _ => return None,
+        };
+        i += 1;
+
+        // Close bracket ']'
+        if i >= len || chars[i] != ']' {
+            return None;
+        }
+        let bracket_close_col = i;
+        i += 1;
+
+        // Optional space after ']'
+        let prefix_end_col = if i < len && chars[i] == ' ' {
+            i + 1
+        } else {
+            i
+        };
+
+        Some(TaskItemInfo {
+            is_checked,
+            marker_col,
+            bracket_open_col,
+            check_char_col,
+            bracket_close_col,
+            prefix_end_col,
+        })
+    }
+
+    /// Returns task information for the specified line if it is a task item
+    pub fn get_task_info(&self, line_idx: usize) -> Option<TaskItemInfo> {
+        if line_idx >= self.line_count() {
+            return None;
+        }
+        let line = self.line_to_string(line_idx);
+        Self::parse_task_item(&line)
+    }
+
+    /// Checks if cursor is currently on a task item checkbox or task line
+    pub fn is_cursor_on_task_item(&self) -> bool {
+        if let Some(info) = self.get_task_info(self.cursor_line) {
+            let line_len = self.line_len(self.cursor_line);
+            self.cursor_col <= info.prefix_end_col || line_len <= info.prefix_end_col
+        } else {
+            false
+        }
+    }
+
+    /// Toggles the task item on the current cursor line
+    pub fn toggle_task_at_cursor(&mut self) -> Option<bool> {
+        self.toggle_task_at_line(self.cursor_line)
+    }
+
+    /// Toggles the task item on the specified line
+    pub fn toggle_task_at_line(&mut self, line: usize) -> Option<bool> {
+        if let Some(info) = self.get_task_info(line) {
+            let new_state = !info.is_checked;
+            self.set_task_checked(line, new_state);
+            Some(new_state)
+        } else {
+            None
+        }
+    }
+
+    /// Sets the task item checked status on the specified line
+    pub fn set_task_checked(&mut self, line: usize, checked: bool) -> bool {
+        if let Some(info) = self.get_task_info(line) {
+            if info.is_checked == checked {
+                return false;
+            }
+            self.push_undo_state();
+            let line_start = self.rope.line_to_char(line);
+            let char_pos = line_start + info.check_char_col;
+            if char_pos < self.rope.len_chars() {
+                self.rope.remove(char_pos..char_pos + 1);
+                self.rope.insert_char(char_pos, if checked { 'x' } else { ' ' });
+                self.is_dirty = true;
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Returns (completed_tasks, total_tasks) if task items exist in the buffer
+    pub fn task_stats(&self) -> Option<(usize, usize)> {
+        let mut total = 0;
+        let mut completed = 0;
+        for i in 0..self.line_count() {
+            if let Some(info) = self.get_task_info(i) {
+                total += 1;
+                if info.is_checked {
+                    completed += 1;
+                }
+            }
+        }
+        if total > 0 {
+            Some((completed, total))
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskItemInfo {
+    pub is_checked: bool,
+    pub marker_col: usize,
+    pub bracket_open_col: usize,
+    pub check_char_col: usize,
+    pub bracket_close_col: usize,
+    pub prefix_end_col: usize,
 }

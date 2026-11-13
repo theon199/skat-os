@@ -235,7 +235,7 @@ echo "Current Directory:" $(pwd)
 ```
 
 Notice how the command output is captured and saved right inside the document!
-Jump over to [[runbook]] or [[architecture]] to see more!
+Jump over to [[daily]] for tasks, [[runbook]] for living playbooks, [[fleet]] for SSH infra, or [[architecture]] to learn more!
 "#;
             fs::write(&welcome_path, welcome)?;
         }
@@ -250,35 +250,134 @@ Traditional operating systems treat documents as passive text files opened by ap
 ### Core Tenets
 1. **Plain Markdown**: Zero vendor lock-in. 100% Git, Obsidian, and Vim friendly.
 2. **Interactive Run-in-Place**: Documents are living playbooks. Code fences are executable targets.
-3. **Hyperlinked Knowledge**: Wiki-links like `[[welcome]]` and `[[runbook]]` automatically build a bidirectional backlink graph in the sidebar.
+3. **Hyperlinked Knowledge**: Wiki-links like `[[welcome]]`, `[[daily]]`, and `[[runbook]]` automatically build a bidirectional backlink graph in the sidebar.
 4. **Single Static Binary**: Powered by Rust, Ratatui, and Crossterm for zero-dependency portability.
 
-See [[runbook]] for everyday operational commands.
+See [[daily]] for your active checklist, [[runbook]] for everyday operational commands, and [[fleet]] for multi-node SSH workflows.
 "#;
             fs::write(&arch_path, arch)?;
         }
 
+        let daily_path = self.root_dir.join("daily.md");
+        if !daily_path.exists() {
+            let daily = r#"# Daily Worklog & Checklist
+
+Active Workspace: {{param:input:FOCUS=Development & Infra Maintenance}}
+
+### 📋 Today's Checklist
+- [ ] Review pending pull requests and system alerts
+- [ ] Run daily fleet health verification in [[fleet]]
+- [ ] Update living runbooks and parameters in [[runbook]]
+
+---
+
+### 💻 Quick System Overview
+Place cursor inside and press **`Ctrl+R`** to run in-place:
+
+```bash name=quick_diagnostics
+uname -srm
+uptime
+df -h / | awk 'NR==1 || NR==2'
+```
+
+---
+
+### 📝 Notes & Scratchpad
+Use this space for daily scratch notes, meeting logs, or command snippets.
+Link to other topics via `[[welcome]]`, `[[architecture]]`, `[[runbook]]`, or `[[fleet]]`.
+"#;
+            fs::write(&daily_path, daily)?;
+        }
+
+        let fleet_path = self.root_dir.join("fleet.md");
+        if !fleet_path.exists() {
+            let fleet = r#"# Infrastructure Fleet & Health Playbook
+
+Run parallel diagnostics across your infrastructure mesh or local nodes.
+
+### Target Environment
+- Target cluster: {{param:select:CLUSTER=staging,prod-us,prod-eu}}
+- Host group: {{param:input:HOSTS=@web_servers}}
+
+---
+
+### Step 1: Fleet Host Status & Uptime
+```bash name=fleet_uptime target="{{params.HOSTS}}" parallel=true
+uptime
+```
+
+### Step 2: System Disk Space Verification
+```bash name=fleet_disk target="{{params.HOSTS}}" parallel=true
+df -h / | awk 'NR==1 || NR==2'
+```
+
+### Step 3: Critical Service Restart (Guardrail Protected)
+```bash name=service_restart target="{{params.HOSTS}}" confirm="Restart application services across target fleet?" danger=true
+echo "Gracefully reloading service on $(hostname)..."
+```
+
+---
+
+Back to [[daily]] or [[welcome]].
+"#;
+            fs::write(&fleet_path, fleet)?;
+        }
+
         let runbook_path = self.root_dir.join("runbook.md");
         if !runbook_path.exists() {
-            let runbook = r#"# Developer Runbook
+            let runbook = r#"# Developer Runbook & Deployment Playbook
 
-This document serves as an executable runbook. Run these commands using **`Ctrl+R`**.
+This document serves as an interactive deployment playbook with parameterized form controls, structured data grids, chained execution, and synced task checklists.
 
-### 1. Git Status & Branch
-```bash
-git status -s
-git branch -v
+### Runbook Parameters
+- Environment: {{param:select:ENV=staging,prod-us-east,prod-eu-west}}
+- Namespace: {{param:input:NAMESPACE=production}}
+- Dry run: {{param:toggle:DRY_RUN=false}}
+
+(Use **`Tab`** / **`Shift+Tab`** to navigate parameters, **`Space`** to toggle / cycle, or **`Enter`** to edit)
+
+### Pre-flight Checklist
+- [ ] Verify local branch and working tree
+- [ ] Confirm target cluster and namespace parameters
+- [ ] Check available system disk space
+
+---
+
+### Step 1: Detect Active Git Branch
+```bash name=get_branch
+git rev-parse --abbrev-ref HEAD
 ```
 
-### 2. Disk Space
-```bash
-df -h .
+### Step 2: Query System Architecture
+```bash name=get_arch
+uname -sm
 ```
 
-### 3. Network Check
-```bash
-curl -I -s --max-time 3 https://www.google.com | head -n 3
+### Step 3: Parameterized Deployment Report
+```bash name=deploy_report
+echo "Deploying branch '{{get_branch.stdout}}' to {{params.ENV}} (namespace: {{params.NAMESPACE}}, dry_run: {{params.DRY_RUN}})"
+echo "Environment variable injection check: $SKAT_PARAM_ENV in namespace $SKAT_PARAM_NAMESPACE"
 ```
+
+### Step 4: Active Services Inventory (format=table)
+```bash name=services format=table
+echo '[{"service": "api-gateway", "cluster": "{{params.ENV}}", "replicas": 3, "status": "Healthy"}, {"service": "worker-pool", "cluster": "{{params.ENV}}", "replicas": 8, "status": "Healthy"}]'
+```
+
+### Step 5: Live Latency Metric (format=sparkline)
+```bash name=latency format=sparkline
+echo "12, 18, 15, 23, 19, 34, 28, 22, 19, 15"
+```
+
+### Step 6: Zero-Trust Guardrail & Secret Deployment
+- Deployment Token: {{param:secret:DEPLOY_TOKEN=sk_live_secret_token_abcdef123456}}
+
+```bash name=safe_deploy dry_run=true confirm="Ready to dispatch rollout to production fleet?"
+echo "Executing safe rollout with masked token: {{secret.DEPLOY_TOKEN}}"
+echo "Dry run simulation flag: $SKAT_DRY_RUN"
+```
+
+---
 
 Back to [[welcome]].
 "#;
