@@ -14,8 +14,8 @@ impl StatusBarView {
             (" RUNNING... ".to_string(), Theme::STATUS_BADGE_RUNNING)
         } else {
             match &app.collab_mode {
-                CollabMode::Host { port } => (format!(" 🌐 HOST:{} ", port), Theme::STATUS_BADGE_HOST),
-                CollabMode::Client { .. } => (" 🔗 JOINED ".to_string(), Theme::STATUS_BADGE_CLIENT),
+                CollabMode::Host { port } => (format!(" HOST:{} ", port), Theme::STATUS_BADGE_HOST),
+                CollabMode::Client { .. } => (" JOINED ".to_string(), Theme::STATUS_BADGE_CLIENT),
                 CollabMode::Offline => {
                     if app.editor.is_dirty() {
                         (" MODIFIED ".to_string(), Theme::STATUS_BADGE_DIRTY)
@@ -67,10 +67,10 @@ impl StatusBarView {
                 .collect();
 
             let peer_badge = if other_peers.is_empty() {
-                " 👥 Connected Peers: 1 (you) ".to_string()
+                " Peers: 1 (you) ".to_string()
             } else {
                 format!(
-                    " 👥 Connected Peers: {} [{}] ",
+                    " Peers: {} [{}] ",
                     other_peers.len() + 1,
                     other_peers.join(", ")
                 )
@@ -81,7 +81,7 @@ impl StatusBarView {
         // Live Tasks completion badge
         if let Some((completed, total)) = app.editor.buffer.task_stats() {
             let pct = (completed * 100).checked_div(total).unwrap_or(0);
-            let task_badge = format!(" ✓ Tasks: {}/{} ({}%) ", completed, total, pct);
+            let task_badge = format!(" Tasks: {}/{} ({}%) ", completed, total, pct);
             let task_style = if completed == total {
                 Theme::STATUS_BADGE_TASKS_COMPLETE
             } else {
@@ -91,9 +91,9 @@ impl StatusBarView {
         }
 
         // Execution Audit Status Badge
-        left_spans.push(Span::styled(" 🛡 AUDIT: ON ", Theme::STATUS_BADGE_AUDIT));
+        left_spans.push(Span::styled(" AUDIT: ON ", Theme::STATUS_BADGE_AUDIT));
 
-        left_spans.push(Span::styled(format!(" 📄 {} ", file_name), Theme::STATUS_BAR));
+        left_spans.push(Span::styled(format!(" {} ", file_name), Theme::STATUS_BAR));
         left_spans.push(Span::styled(
             if app.status_message.is_empty() {
                 String::new()

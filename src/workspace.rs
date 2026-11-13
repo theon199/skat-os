@@ -294,14 +294,14 @@ See [[daily]] for your active checklist, [[runbook]] for everyday operational co
 
 Active Workspace: {{param:input:FOCUS=Development & Infra Maintenance}}
 
-### 📋 Today's Checklist
+### Today's Checklist
 - [ ] Review pending pull requests and system alerts
 - [ ] Run daily fleet health verification in [[fleet]]
 - [ ] Update living runbooks and parameters in [[runbook]]
 
 ---
 
-### 💻 Quick System Overview
+### Quick System Overview
 Place cursor inside and press **`Ctrl+R`** to run in-place:
 
 ```bash name=quick_diagnostics
@@ -312,7 +312,7 @@ df -h / | awk 'NR==1 || NR==2'
 
 ---
 
-### 📝 Notes & Scratchpad
+### Notes & Scratchpad
 Use this space for daily scratch notes, meeting logs, or command snippets.
 Link to other topics via `[[welcome]]`, `[[architecture]]`, `[[runbook]]`, or `[[fleet]]`.
 "#;
@@ -438,7 +438,7 @@ mod tests {
         let mut ws = Workspace::new(temp_dir.path().to_path_buf()).unwrap();
 
         let doc_path = ws.create_document("search_test.md").unwrap();
-        fs::write(&doc_path, "# Search Title\nLine with QuickBrownFox\nUnicode: 🚀 RocketLaunch\n").unwrap();
+        fs::write(&doc_path, "# Search Title\nLine with QuickBrownFox\nUnicode: Ω OmegaLaunch\n").unwrap();
         ws.refresh().unwrap();
 
         // ASCII case-insensitive match
@@ -447,7 +447,7 @@ mod tests {
         assert_eq!(matches[0].line_number, 2);
 
         // Unicode match
-        let matches_unicode = ws.search_content("Rocket");
+        let matches_unicode = ws.search_content("Omega");
         assert_eq!(matches_unicode.len(), 1);
         assert_eq!(matches_unicode[0].line_number, 3);
     }

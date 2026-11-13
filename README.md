@@ -1,4 +1,4 @@
-# skat-os 🪐
+# skat-os
 ### The Terminal Document Operating System (Doc-OS)
 
 `skat-os` is a lightweight, distraction-free **Document Operating System** that runs directly inside your terminal. It flips traditional computing on its head: instead of running applications inside an OS that manage separate files, **the document is the operating system**.
@@ -7,7 +7,7 @@ Documents act as living notes, wiki pages, runbooks, and interactive shells with
 
 ```
 +--------------------------+-------------------------------------------------------+
-| 📁 Workspace             | 📄 welcome.md [MODIFIED]                              |
+| Workspace                | welcome.md [MODIFIED]                                 |
 +--------------------------+-------------------------------------------------------+
 | ▶ Welcome                | # Welcome to skat-os                                  |
 |   architecture.md        |                                                       |
@@ -29,37 +29,37 @@ Documents act as living notes, wiki pages, runbooks, and interactive shells with
 
 ---
 
-## ⚡ Key Capabilities
+## Key Capabilities
 
-- 📝 **Document-as-an-OS**: Modeless, intuitive text editor powered by a high-performance `Ropey` rope buffer.
-- 🚀 **Interactive Run-in-Place**: Embed fenced code blocks (`bash`, `sh`, `zsh`, `python`, `node`). Press **`Ctrl+R`** to execute them asynchronously without freezing the UI and inject collapsible output blocks inline.
-- 🗂 **Hyperlinked Wiki & Backlinks**: Automatically detects `[[wiki-links]]` between documents and constructs a live bidirectional backlink graph in the sidebar.
-- 🔍 **Unified Command Palette (`Ctrl+K`)**: One fuzzy-search modal to jump between documents, perform full-text grep across the workspace, create notes, or execute actions.
-- 📂 **Zero Vendor Lock-In**: 100% standard plain Markdown (`.md`) files stored directly in your workspace directory (e.g. `./docs`). Fully compatible with Git, Obsidian, and Vim.
-- 🤝 **Real-Time Multiplayer Collaboration**: Pair-write living runbooks over direct TCP connections with zero cloud or 3rd-party dependencies.
-- 👥 **Visual Multi-Cursor & Name Badges**: See teammates' cursors live with distinct ANSI colors and name badges (`[Alice]`, `[Bob]`), plus real-time connected peers status indicators.
-- ⚡ **Shared Async Co-Execution**: Any collaborator can trigger code execution (`Ctrl+R`); the live command output synchronously updates inline across all connected terminals.
-- ✅ **Interactive Synced Task Checklists**: Toggle markdown task items (`- [ ]` / `* [ ]` <-> `- [x]`) with **`Space`**, live synced across all connected collaborators with a status bar completion badge (`✓ Tasks: 3/5 (60%)`).
-- 🔗 **Reactive Runbooks & Chained Code Execution**: Name code blocks (`name=get_pod`) and interpolate previous outputs into downstream commands via `{{get_pod.stdout}}` or auto-injected environment variables (`$SKAT_GET_POD_STDOUT`).
-- 📜 **Sequential Playbook Modes with Fail-Fast Safeguard**: Run entire runbooks top-to-bottom (**`Ctrl+Shift+R`** / **`F5`**) or up to cursor with automatic sequence halting on non-zero exit codes.
-- 📺 **Live Output Streaming & PTY Integration**: Real-time pseudo-terminal (PTY) execution streaming stdout/stderr incrementally into document output blocks with native ANSI colors, bold formatting, and terminal cursor control rendering.
-- ⌨️ **Interactive Stdin & Input Prompts**: Send interactive keyboard keystrokes directly to running commands prompting on stdin (`[y/N]`, `read`, passwords).
-- ⏹ **Graceful In-Place Cancellation**: Press **`Ctrl+C`** while a command is streaming to immediately terminate the child process and mark the output block as `[interrupted]`.
-- 🎛 **Inline Parameterized Form Controls**: Embed reactive form widgets inside prose (`{{param:input:NAME=val}}`, `{{param:select:ENV=prod,stage}}`, `{{param:toggle:DRY_RUN=true}}`). Navigate with **`Tab`** / **`Shift+Tab`**, toggle/cycle with **`Space`** / **`Enter`**, and auto-inject into code blocks via `{{params.NAME}}` and `$SKAT_PARAM_NAME`.
-- 📊 **Interactive Structured Data Grids**: Fenced code blocks with `format=table` (or JSON/CSV outputs) render as interactive Ratatui tables with arrow-key row navigation, row inspection modal (**`Enter`**), and downstream cell binding (`{{table.selected.field}}`).
-- 📈 **Live Terminal Metric Charts & Sparklines**: Fenced blocks with `format=chart` or `format=sparkline` parse numeric streams in real time and render Ratatui `BarChart` or `Sparkline` canvas widgets.
-- 📡 **Multiplayer Parameter Synchronization**: Parameter edits broadcast instantly over TCP (`ParamUpdate`) so teams stay aligned with shared parameters during collaborative runbook execution.
-- 🌐 **Remote Infrastructure Mesh & Fleet Execution**: Run code blocks transparently over SSH targeting individual nodes (`target="ssh://user@host:port"`), bastion jump hosts (`proxy="ssh://bastion.corp.com"`), or host groups (`target="@web_servers"`).
-- 🗄 **SSH Session Pooling & Persistent Multiplexing**: Reusable authenticated SSH connections via `ssh-agent` (`SSH_AUTH_SOCK`), standard key pairs (`~/.ssh/id_ed25519`, `id_rsa`), and passwords, eliminating per-command handshake overhead.
-- 🚀 **Parallel Fleet Fan-Out & Aggregated Output Canvas**: Concurrent cluster execution (`parallel=true`) with interactive Ratatui tabbed sub-views, per-host status badges (`[10.0.0.1: ✓ exit 0]`), and downstream multi-host variable interpolation (`{{web_servers[0].stdout}}`, `{{web_servers.failed}}`).
-- 🛡 **Dangerous Command Guardrails & Interactive Approval Gates**: Static heuristic security analyzer detecting destructive operations (`rm -rf /`, `mkfs`, `dd`, SQL destruction, `kubectl delete ns`), interactive Ratatui safety confirmation modals (`confirm="Are you sure?"`), danger banners, required confirmation keywords for critical blast radius, dry-run simulation mode (`dry_run=true` injecting `$SKAT_DRY_RUN=1`), and multiplayer TCP consensus voting (`approvals=2`).
-- 🔐 **Dynamic Secret Vault & Zero-Leak Credential Resolvers**: Zero-leak secret interpolation (`{{secret.VAULT_PATH}}`, `{{secrets.KEY}}`), live streaming redaction (`[REDACTED]`), masked form parameters (`{{param:secret:TOKEN}}` -> `••••••••`), and pluggable backend resolvers (.env.vault, CLI agents `op`/`vault`/`aws`/`pass`, system Keychain, and ChaCha20-Poly1305 encrypted frontmatter).
-- 📜 **Immutable Execution Audit Trails**: Automatic JSON-Lines journal (`.skat/audit.log`) with SHA-256 cryptographic hash chaining, recording ISO-8601 timestamps, collaborator identity, targets, redacted command, parameters, exit code, duration, and an interactive timeline viewer modal (`Ctrl+K` -> `View Audit Log`).
-- 🦀 **Single Static Binary**: Built with Rust, Ratatui, and Crossterm for zero runtime dependencies and blazing sub-millisecond responsiveness.
+- **Document-as-an-OS**: Modeless, intuitive text editor powered by a high-performance `Ropey` rope buffer.
+- **Interactive Run-in-Place**: Embed fenced code blocks (`bash`, `sh`, `zsh`, `python`, `node`). Press **`Ctrl+R`** to execute them asynchronously without freezing the UI and inject collapsible output blocks inline.
+- **Hyperlinked Wiki & Backlinks**: Automatically detects `[[wiki-links]]` between documents and constructs a live bidirectional backlink graph in the sidebar.
+- **Unified Command Palette (`Ctrl+K`)**: One fuzzy-search modal to jump between documents, perform full-text grep across the workspace, create notes, or execute actions.
+- **Zero Vendor Lock-In**: 100% standard plain Markdown (`.md`) files stored directly in your workspace directory (e.g. `./docs`). Fully compatible with Git, Obsidian, and Vim.
+- **Real-Time Multiplayer Collaboration**: Pair-write living runbooks over direct TCP connections with zero cloud or 3rd-party dependencies.
+- **Visual Multi-Cursor & Name Badges**: See teammates' cursors live with distinct ANSI colors and name badges (`[Alice]`, `[Bob]`), plus real-time connected peers status indicators.
+- **Shared Async Co-Execution**: Any collaborator can trigger code execution (`Ctrl+R`); the live command output synchronously updates inline across all connected terminals.
+- **Interactive Synced Task Checklists**: Toggle markdown task items (`- [ ]` / `* [ ]` <-> `- [x]`) with **`Space`**, live synced across all connected collaborators with a status bar completion badge (`Tasks: 3/5 (60%)`).
+- **Reactive Runbooks & Chained Code Execution**: Name code blocks (`name=get_pod`) and interpolate previous outputs into downstream commands via `{{get_pod.stdout}}` or auto-injected environment variables (`$SKAT_GET_POD_STDOUT`).
+- **Sequential Playbook Modes with Fail-Fast Safeguard**: Run entire runbooks top-to-bottom (**`Ctrl+Shift+R`** / **`F5`**) or up to cursor with automatic sequence halting on non-zero exit codes.
+- **Live Output Streaming & PTY Integration**: Real-time pseudo-terminal (PTY) execution streaming stdout/stderr incrementally into document output blocks with native ANSI colors, bold formatting, and terminal cursor control rendering.
+- **Interactive Stdin & Input Prompts**: Send interactive keyboard keystrokes directly to running commands prompting on stdin (`[y/N]`, `read`, passwords).
+- **Graceful In-Place Cancellation**: Press **`Ctrl+C`** while a command is streaming to immediately terminate the child process and mark the output block as `[interrupted]`.
+- **Inline Parameterized Form Controls**: Embed reactive form widgets inside prose (`{{param:input:NAME=val}}`, `{{param:select:ENV=prod,stage}}`, `{{param:toggle:DRY_RUN=true}}`). Navigate with **`Tab`** / **`Shift+Tab`**, toggle/cycle with **`Space`** / **`Enter`**, and auto-inject into code blocks via `{{params.NAME}}` and `$SKAT_PARAM_NAME`.
+- **Interactive Structured Data Grids**: Fenced code blocks with `format=table` (or JSON/CSV outputs) render as interactive Ratatui tables with arrow-key row navigation, row inspection modal (**`Enter`**), and downstream cell binding (`{{table.selected.field}}`).
+- **Live Terminal Metric Charts & Sparklines**: Fenced blocks with `format=chart` or `format=sparkline` parse numeric streams in real time and render Ratatui `BarChart` or `Sparkline` canvas widgets.
+- **Multiplayer Parameter Synchronization**: Parameter edits broadcast instantly over TCP (`ParamUpdate`) so teams stay aligned with shared parameters during collaborative runbook execution.
+- **Remote Infrastructure Mesh & Fleet Execution**: Run code blocks transparently over SSH targeting individual nodes (`target="ssh://user@host:port"`), bastion jump hosts (`proxy="ssh://bastion.corp.com"`), or host groups (`target="@web_servers"`).
+- **SSH Session Pooling & Persistent Multiplexing**: Reusable authenticated SSH connections via `ssh-agent` (`SSH_AUTH_SOCK`), standard key pairs (`~/.ssh/id_ed25519`, `id_rsa`), and passwords, eliminating per-command handshake overhead.
+- **Parallel Fleet Fan-Out & Aggregated Output Canvas**: Concurrent cluster execution (`parallel=true`) with interactive Ratatui tabbed sub-views, per-host status badges (`[10.0.0.1: exit 0]`), and downstream multi-host variable interpolation (`{{web_servers[0].stdout}}`, `{{web_servers.failed}}`).
+- **Dangerous Command Guardrails & Interactive Approval Gates**: Static heuristic security analyzer detecting destructive operations (`rm -rf /`, `mkfs`, `dd`, SQL destruction, `kubectl delete ns`), interactive Ratatui safety confirmation modals (`confirm="Are you sure?"`), danger banners, required confirmation keywords for critical blast radius, dry-run simulation mode (`dry_run=true` injecting `$SKAT_DRY_RUN=1`), and multiplayer TCP consensus voting (`approvals=2`).
+- **Dynamic Secret Vault & Zero-Leak Credential Resolvers**: Zero-leak secret interpolation (`{{secret.VAULT_PATH}}`, `{{secrets.KEY}}`), live streaming redaction (`[REDACTED]`), masked form parameters (`{{param:secret:TOKEN}}` -> `••••••••`), and pluggable backend resolvers (.env.vault, CLI agents `op`/`vault`/`aws`/`pass`, system Keychain, and ChaCha20-Poly1305 encrypted frontmatter).
+- **Immutable Execution Audit Trails**: Automatic JSON-Lines journal (`.skat/audit.log`) with SHA-256 cryptographic hash chaining, recording ISO-8601 timestamps, collaborator identity, targets, redacted command, parameters, exit code, duration, and an interactive timeline viewer modal (`Ctrl+K` -> `View Audit Log`).
+- **Single Static Binary**: Built with Rust, Ratatui, and Crossterm for zero runtime dependencies and blazing sub-millisecond responsiveness.
 
 ---
 
-## ⌨️ Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Shortcut | Description |
 | :--- | :--- |
@@ -83,7 +83,7 @@ Documents act as living notes, wiki pages, runbooks, and interactive shells with
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Build and Run
 Ensure you have Rust installed (`cargo --version`):
@@ -134,7 +134,7 @@ cargo test
 
 ---
 
-## 🏗 Architecture & Code Structure
+## Architecture & Code Structure
 
 ```
 skat-os/
@@ -176,7 +176,7 @@ skat-os/
 
 ---
 
-## 🔮 Roadmap
+## Roadmap
 - [x] **Phase 1: Local Doc-OS Engine**
   - Modeless Ropey text editor
   - Collapsible dual-pane sidebar with backlinks graph
@@ -236,6 +236,6 @@ skat-os/
   - Dynamic Secret Vault: Zero-leak interpolation (`{{secret.PATH}}`, `{{secrets.KEY}}`), runtime live streaming masking (`[REDACTED]`), and masked form parameter widget (`{{param:secret:TOKEN}}` -> `••••••••`)
   - Pluggable Credential Resolvers: `.env.vault` / `.env`, CLI agent passthroughs (1Password `op`, HashiCorp Vault `vault`, AWS Secrets Manager `aws`, pass `pass`), system Keychain (`security`/`secret-tool`), and ChaCha20-Poly1305 encrypted frontmatter
   - Immutable Execution Audit Trail: `.skat/audit.log` journal with SHA-256 hash chaining, tracking execution ID, timestamp, initiator, target nodes, redacted command, parameters, exit code, duration, and input/output integrity hashes
-  - Command Palette Audit Viewer: Searchable execution history modal (`Ctrl+K` -> `📜 View Audit Log`) with cryptographic hash integrity verification badge
+  - Command Palette Audit Viewer: Searchable execution history modal (`Ctrl+K` -> `View Audit Log`) with cryptographic hash integrity verification badge
   - Unsaved Changes Guard & Prompt: Interactive modal (`[S]ave & Proceed` / `[D]iscard` / `[C]ancel`) guarding against accidental data loss on `Ctrl+Q` and document switching
   - 102 total tests across all suites (31 unit tests, 14 multiplayer tests, 37 core tests, 10 remote mesh tests, 10 guard/vault/audit integration tests) with 100% pass rate

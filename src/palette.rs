@@ -103,7 +103,7 @@ impl CommandPalette {
             if let Some(s) = score {
                 document_matched = true;
                 candidates.push(PaletteItem {
-                    label: format!("📄 {}", doc.title),
+                    label: doc.title.clone(),
                     subtext: doc.relative_path.clone(),
                     action: PaletteAction::OpenDocument(doc.path.clone()),
                     score: s,
@@ -114,52 +114,52 @@ impl CommandPalette {
         // 2. System actions
         let system_actions = vec![
             (
-                "💾 Save Document",
+                "Save Document",
                 "Save active buffer to disk (Ctrl+S)",
                 PaletteAction::SaveDocument,
             ),
             (
-                "🚀 Run Code Block",
+                "Run Code Block",
                 "Execute code block under cursor (Ctrl+R)",
                 PaletteAction::RunCodeBlock,
             ),
             (
-                "⚡ Run All Blocks (Playbook)",
+                "Run All Blocks (Playbook)",
                 "Execute all code blocks sequentially from top to bottom (Ctrl+Shift+R / F5)",
                 PaletteAction::RunAllBlocks,
             ),
             (
-                "⏭ Run Up To Cursor",
+                "Run Up To Cursor",
                 "Execute all code blocks from line 0 up to current cursor position",
                 PaletteAction::RunUpToCursor,
             ),
             (
-                "✓ Toggle Task Checkbox",
+                "Toggle Task Checkbox",
                 "Toggle checklist item under cursor [ ] <-> [x] (Space)",
                 PaletteAction::ToggleTaskItem,
             ),
             (
-                "▶ Toggle Output Block",
+                "Toggle Output Block",
                 "Collapse or expand output block (Ctrl+O)",
                 PaletteAction::ToggleOutputCollapse,
             ),
             (
-                "📁 Toggle Sidebar",
+                "Toggle Sidebar",
                 "Show/hide file and backlinks sidebar (Ctrl+B)",
                 PaletteAction::ToggleSidebar,
             ),
             (
-                "📜 View Audit Log",
+                "View Audit Log",
                 "View immutable execution audit trail timeline and cryptographic hash verification",
                 PaletteAction::ViewAuditLog,
             ),
             (
-                "❓ Help & Keybindings",
+                "Help & Keybindings",
                 "View cheatsheet and shortcuts (F1)",
                 PaletteAction::ShowHelp,
             ),
             (
-                "❌ Quit skat-os",
+                "Quit skat-os",
                 "Exit document operating system (Ctrl+Q)",
                 PaletteAction::Quit,
             ),
@@ -213,7 +213,7 @@ impl CommandPalette {
 
         // Optional delete current document
         if let Some(path) = current_file {
-            let label = "🗑 Delete Current Document";
+            let label = "Delete Current Document";
             let score = if q.is_empty() {
                 Some(5)
             } else {

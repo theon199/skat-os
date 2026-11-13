@@ -19,7 +19,7 @@ impl SearchView {
 
         frame.render_widget(Clear, modal_area);
 
-        let title = format!(" 🔍 Search Results: \"{}\" ", app.search_query);
+        let title = format!(" Search Results: \"{}\" ", app.search_query);
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Theme::TITLE_ACTIVE)

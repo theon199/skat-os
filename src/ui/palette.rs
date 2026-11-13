@@ -24,7 +24,7 @@ impl PaletteView {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Theme::TITLE_ACTIVE)
-            .title(Span::styled(" ⚡ Command Palette ", Theme::TITLE_ACTIVE));
+            .title(Span::styled(" Command Palette ", Theme::TITLE_ACTIVE));
 
         let inner_area = block.inner(modal_area);
         frame.render_widget(block, modal_area);

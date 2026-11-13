@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
         headless: true,
     } = command
     {
-        println!("🚀 Starting headless skat-os collaboration server...");
+        println!("Starting headless skat-os collaboration server...");
         let ws = Workspace::new(workspace)?;
         let first_doc = ws.docs.first().map(|d| d.path.clone());
         let (initial_content, doc_name) = if let Some(path) = first_doc {
@@ -67,7 +67,7 @@ async fn main() -> Result<()> {
 
         let bind_addr = format!("0.0.0.0:{}", port);
         let server_handle = CollabServer::bind(&bind_addr, initial_content, doc_name).await?;
-        println!("✅ Collaboration server listening on {}", server_handle.local_addr);
+        println!("Collaboration server listening on {}", server_handle.local_addr);
         println!("Press Ctrl+C to stop.");
         tokio::signal::ctrl_c().await?;
         println!("\nServer stopped.");

@@ -157,9 +157,9 @@ impl UI {
         frame.render_widget(Clear, popup_area);
 
         let title_text = if is_secret {
-            format!(" 🔒 Edit Secret Parameter: {} ", param_name)
+            format!(" Edit Secret Parameter: {} ", param_name)
         } else {
-            format!(" ✎ Edit Parameter: {} ", param_name)
+            format!(" Edit Parameter: {} ", param_name)
         };
 
         let block = Block::default()
@@ -222,9 +222,9 @@ impl UI {
         };
 
         let title_str = if is_critical {
-            format!(" ⚠ SAFETY CONFIRMATION GATE [{}] ", params.danger_level)
+            format!(" SAFETY CONFIRMATION GATE [{}] ", params.danger_level)
         } else {
-            " ⚠ SAFETY CONFIRMATION GATE ".to_string()
+            " SAFETY CONFIRMATION GATE ".to_string()
         };
 
         let block = Block::default()
@@ -295,16 +295,16 @@ impl UI {
         frame.render_widget(Clear, popup_area);
 
         let status_title = if integrity_verified {
-            "✓ SHA-256 Verified"
+            "SHA-256 Verified"
         } else {
-            "⚠ TAMPER DETECTED"
+            "TAMPER DETECTED"
         };
 
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(if integrity_verified { Theme::TITLE_ACTIVE } else { Theme::DANGER_BANNER })
             .title(Span::styled(
-                format!(" 📜 Execution Audit Log Timeline [{}] ", status_title),
+                format!(" Execution Audit Log Timeline [{}] ", status_title),
                 if integrity_verified { Theme::TITLE_ACTIVE } else { Theme::DANGER_BANNER },
             ));
 
@@ -454,7 +454,7 @@ impl UI {
             .borders(Borders::ALL)
             .border_style(Theme::TITLE_ACTIVE)
             .title(Span::styled(
-                format!(" 🔍 Row Inspection: {} (Row {}/{}) ", block_id, row_index + 1, total_rows),
+                format!(" Row Inspection: {} (Row {}/{}) ", block_id, row_index + 1, total_rows),
                 Theme::TITLE_ACTIVE,
             ));
 
@@ -504,7 +504,7 @@ impl UI {
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
             .title(Span::styled(
-                " ⚠️  Unsaved Changes ",
+                " Unsaved Changes ",
                 Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
             ));
 

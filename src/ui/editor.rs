@@ -56,16 +56,16 @@ impl EditorView {
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_else(|| "Untitled".to_string());
                 if is_dirty {
-                    format!(" 📄 {} [MODIFIED] ", name)
+                    format!(" {} [MODIFIED] ", name)
                 } else {
-                    format!(" 📄 {} ", name)
+                    format!(" {} ", name)
                 }
             }
             None => {
                 if is_dirty {
-                    " 📄 Untitled [MODIFIED] ".to_string()
+                    " Untitled [MODIFIED] ".to_string()
                 } else {
-                    " 📄 Untitled ".to_string()
+                    " Untitled ".to_string()
                 }
             }
         };
@@ -237,9 +237,9 @@ impl EditorView {
                 let badge = if is_output_collapsed {
                     format!("▶ {} (Press Ctrl+O to expand)", trimmed)
                 } else if trimmed.contains("[running]") {
-                    format!("⏳ {}", trimmed)
+                    format!("● {}", trimmed)
                 } else if trimmed.contains("[interrupted]") {
-                    format!("⏹ {}", trimmed)
+                    format!("■ {}", trimmed)
                 } else {
                     format!("▼ {}", trimmed)
                 };
@@ -264,9 +264,9 @@ impl EditorView {
                     let header_rest = trimmed.trim_start_matches('`').trim();
                     let attrs = Runner::parse_fence_attributes(header_rest);
                     if attrs.danger || attrs.blast_radius.as_deref() == Some("critical") {
-                        spans.push(Span::styled(" ⚠ DANGER / BLAST RADIUS: CRITICAL ⚠ ", Theme::DANGER_BANNER));
+                        spans.push(Span::styled(" [DANGER / BLAST RADIUS: CRITICAL] ", Theme::DANGER_BANNER));
                     } else if attrs.blast_radius.as_deref() == Some("high") {
-                        spans.push(Span::styled(" ⚠ HIGH BLAST RADIUS ⚠ ", Theme::CONFIRM_MODAL_TITLE_WARN));
+                        spans.push(Span::styled(" [HIGH BLAST RADIUS] ", Theme::CONFIRM_MODAL_TITLE_WARN));
                     }
                     if attrs.dry_run {
                         spans.push(Span::styled(" [DRY RUN] ", Theme::DRY_RUN_BADGE));
@@ -374,7 +374,7 @@ impl EditorView {
                             Block::default()
                                 .borders(Borders::ALL)
                                 .border_style(Theme::TITLE_ACTIVE)
-                                .title(" 📊 Structured Output Table "),
+                                .title(" Structured Output Table "),
                         );
                     frame.render_widget(table, rect);
                 }
@@ -391,7 +391,7 @@ impl EditorView {
                             Block::default()
                                 .borders(Borders::ALL)
                                 .border_style(Theme::TITLE_ACTIVE)
-                                .title(" 📈 Live Metric Sparkline "),
+                                .title(" Live Metric Sparkline "),
                         );
                     frame.render_widget(spark, rect);
                 }
@@ -413,7 +413,7 @@ impl EditorView {
                             Block::default()
                                 .borders(Borders::ALL)
                                 .border_style(Theme::TITLE_ACTIVE)
-                                .title(" 📊 Metric Bar Chart "),
+                                .title(" Metric Bar Chart "),
                         );
                     frame.render_widget(barchart, rect);
                 }
@@ -483,7 +483,7 @@ impl EditorView {
                             }
 
                             let title = format!(
-                                " 🌐 Host: {} (Exit: {}) [Tab {}/{}: Left/Right or [/] to switch] ",
+                                " Host: {} (Exit: {}) [Tab {}/{}: Left/Right or [/] to switch] ",
                                 host_out.host,
                                 host_out.exit_code,
                                 sel_tab + 1,
@@ -549,10 +549,10 @@ impl EditorView {
 
             let (badge_text, normal_style) = match &p.param_type {
                 crate::form::FormParamType::Input => {
-                    (format!(" ✎ {}: {} ", p.name, p.value), Theme::PARAM_INPUT)
+                    (format!(" {}: {} ", p.name, p.value), Theme::PARAM_INPUT)
                 }
                 crate::form::FormParamType::Secret => {
-                    (format!(" 🔒 {}: {} ", p.name, p.display_value()), Theme::PARAM_SECRET)
+                    (format!(" [secret] {}: {} ", p.name, p.display_value()), Theme::PARAM_SECRET)
                 }
                 crate::form::FormParamType::Select { .. } => {
                     (format!(" ▾ {}: {} ▾ ", p.name, p.value), Theme::PARAM_SELECT)

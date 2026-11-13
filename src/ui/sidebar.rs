@@ -21,7 +21,7 @@ impl SidebarView {
             } else {
                 Theme::TITLE_INACTIVE
             })
-            .title(Span::styled(" 📁 Workspace ", if is_focused { Theme::TITLE_ACTIVE } else { Theme::TITLE_INACTIVE }));
+            .title(Span::styled(" Workspace ", if is_focused { Theme::TITLE_ACTIVE } else { Theme::TITLE_INACTIVE }));
 
         let inner_area = block.inner(area);
         frame.render_widget(block, area);
