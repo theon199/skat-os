@@ -265,7 +265,7 @@ impl SecretVault {
         #[cfg(not(any(target_os = "macos", target_os = "linux")))]
         {
             let _ = spec;
-            return None;
+            None
         }
         #[cfg(any(target_os = "macos", target_os = "linux"))]
         {
