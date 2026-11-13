@@ -262,34 +262,42 @@ impl SecretVault {
 
     /// System keychain passthrough: security (macOS) or secret-tool (Linux)
     fn resolve_keyring_cli(spec: &str) -> Option<String> {
-        let (service, account) = spec.split_once('/')?;
-        #[cfg(target_os = "macos")]
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
         {
-            let output = Command::new("security")
-                .args(["find-generic-password", "-s", service, "-a", account, "-w"])
-                .output()
-                .ok()?;
-            if output.status.success() {
-                let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !s.is_empty() {
-                    return Some(s);
+            let _ = spec;
+            None
+        }
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        {
+            let (service, account) = spec.split_once('/')?;
+            #[cfg(target_os = "macos")]
+            {
+                let output = Command::new("security")
+                    .args(["find-generic-password", "-s", service, "-a", account, "-w"])
+                    .output()
+                    .ok()?;
+                if output.status.success() {
+                    let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !s.is_empty() {
+                        return Some(s);
+                    }
                 }
             }
-        }
-        #[cfg(target_os = "linux")]
-        {
-            let output = Command::new("secret-tool")
-                .args(["lookup", "service", service, "account", account])
-                .output()
-                .ok()?;
-            if output.status.success() {
-                let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !s.is_empty() {
-                    return Some(s);
+            #[cfg(target_os = "linux")]
+            {
+                let output = Command::new("secret-tool")
+                    .args(["lookup", "service", service, "account", account])
+                    .output()
+                    .ok()?;
+                if output.status.success() {
+                    let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !s.is_empty() {
+                        return Some(s);
+                    }
                 }
             }
+            None
         }
-        None
     }
 
     /// Encrypts a key-value dictionary using ChaCha20-Poly1305 with a passphrase
