@@ -180,9 +180,11 @@ impl FormParser {
             return None;
         }
 
-        if let Some(pos) = Self::find_at_cursor(buffer, line, col)
-            .and_then(|curr| all.iter().position(|p| p.name == curr.name && p.line == curr.line && p.start_col == curr.start_col))
-        {
+        if let Some(pos) = Self::find_at_cursor(buffer, line, col).and_then(|curr| {
+            all.iter().position(|p| {
+                p.name == curr.name && p.line == curr.line && p.start_col == curr.start_col
+            })
+        }) {
             if pos + 1 < all.len() {
                 return Some(all[pos + 1].clone());
             } else {
@@ -206,9 +208,11 @@ impl FormParser {
             return None;
         }
 
-        if let Some(pos) = Self::find_at_cursor(buffer, line, col)
-            .and_then(|curr| all.iter().position(|p| p.name == curr.name && p.line == curr.line && p.start_col == curr.start_col))
-        {
+        if let Some(pos) = Self::find_at_cursor(buffer, line, col).and_then(|curr| {
+            all.iter().position(|p| {
+                p.name == curr.name && p.line == curr.line && p.start_col == curr.start_col
+            })
+        }) {
             if pos == 0 {
                 return all.last().cloned();
             } else {
@@ -238,11 +242,21 @@ impl FormParser {
 
         match &param.param_type {
             FormParamType::Toggle => {
-                let new_val = if param.value == "true" { "false" } else { "true" };
+                let new_val = if param.value == "true" {
+                    "false"
+                } else {
+                    "true"
+                };
                 let mut updated = param.clone();
                 updated.value = new_val.to_string();
                 let new_raw = updated.to_raw_string();
-                Self::replace_param_range(buffer, param.line, param.start_col, param.end_col, &new_raw);
+                Self::replace_param_range(
+                    buffer,
+                    param.line,
+                    param.start_col,
+                    param.end_col,
+                    &new_raw,
+                );
                 Some((param.name, new_val.to_string()))
             }
             FormParamType::Select { options } => {
@@ -256,7 +270,13 @@ impl FormParser {
                 updated.value = new_val.clone();
                 updated.param_type = FormParamType::Select { options };
                 let new_raw = updated.to_raw_string();
-                Self::replace_param_range(buffer, param.line, param.start_col, param.end_col, &new_raw);
+                Self::replace_param_range(
+                    buffer,
+                    param.line,
+                    param.start_col,
+                    param.end_col,
+                    &new_raw,
+                );
                 Some((param.name, new_val))
             }
             FormParamType::Input | FormParamType::Secret => None,
@@ -264,7 +284,10 @@ impl FormParser {
     }
 
     /// Updates an input or secret parameter at cursor position with a new string value
-    pub fn update_input_at_cursor(buffer: &mut TextBuffer, new_val: &str) -> Option<(String, String)> {
+    pub fn update_input_at_cursor(
+        buffer: &mut TextBuffer,
+        new_val: &str,
+    ) -> Option<(String, String)> {
         let line = buffer.cursor_line;
         let col = buffer.cursor_col;
         let param = Self::find_at_cursor(buffer, line, col)?;
@@ -299,7 +322,11 @@ impl FormParser {
     }
 
     /// Updates all occurrences of a parameter by name across the buffer with a new value
-    pub fn update_param_in_buffer(buffer: &mut TextBuffer, param_name: &str, new_value: &str) -> bool {
+    pub fn update_param_in_buffer(
+        buffer: &mut TextBuffer,
+        param_name: &str,
+        new_value: &str,
+    ) -> bool {
         let text = buffer.get_text();
         let updated = Self::update_param_in_str(&text, param_name, new_value);
         if text != updated {
@@ -341,7 +368,10 @@ impl FormParser {
                             .filter(|s| !s.is_empty())
                             .collect();
                         // Put new_value first
-                        if let Some(pos) = options.iter().position(|opt| opt.eq_ignore_ascii_case(new_value)) {
+                        if let Some(pos) = options
+                            .iter()
+                            .position(|opt| opt.eq_ignore_ascii_case(new_value))
+                        {
                             options.rotate_left(pos);
                         } else {
                             options.insert(0, new_value.to_string());
@@ -429,19 +459,40 @@ mod tests {
         buffer.cursor_col = 15;
         let cycled = FormParser::toggle_or_cycle_at_cursor(&mut buffer);
         assert_eq!(cycled, Some(("CLUSTER".to_string(), "staging".to_string())));
-        assert!(buffer.get_text().contains("{{param:select:CLUSTER=staging,dev,prod}}"));
+        assert!(
+            buffer
+                .get_text()
+                .contains("{{param:select:CLUSTER=staging,dev,prod}}")
+        );
     }
 
     #[test]
     fn test_update_param_in_buffer() {
-        let text = "Target: {{param:input:HOST=10.0.0.1}} with key {{param:secret:SSH_KEY=orig_pass}}";
+        let text =
+            "Target: {{param:input:HOST=10.0.0.1}} with key {{param:secret:SSH_KEY=orig_pass}}";
         let mut buffer = TextBuffer::from_str(text);
 
-        assert!(FormParser::update_param_in_buffer(&mut buffer, "HOST", "192.168.1.50"));
-        assert!(buffer.get_text().contains("{{param:input:HOST=192.168.1.50}}"));
+        assert!(FormParser::update_param_in_buffer(
+            &mut buffer,
+            "HOST",
+            "192.168.1.50"
+        ));
+        assert!(
+            buffer
+                .get_text()
+                .contains("{{param:input:HOST=192.168.1.50}}")
+        );
 
-        assert!(FormParser::update_param_in_buffer(&mut buffer, "SSH_KEY", "new_secure_key"));
-        assert!(buffer.get_text().contains("{{param:secret:SSH_KEY=new_secure_key}}"));
+        assert!(FormParser::update_param_in_buffer(
+            &mut buffer,
+            "SSH_KEY",
+            "new_secure_key"
+        ));
+        assert!(
+            buffer
+                .get_text()
+                .contains("{{param:secret:SSH_KEY=new_secure_key}}")
+        );
     }
 
     #[test]

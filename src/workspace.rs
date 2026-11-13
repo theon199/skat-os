@@ -7,9 +7,7 @@ use std::sync::LazyLock;
 use std::time::SystemTime;
 use walkdir::WalkDir;
 
-static LINK_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\[\[([^\]]+)\]\]").unwrap()
-});
+static LINK_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[\[([^\]]+)\]\]").unwrap());
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -53,7 +51,10 @@ impl Workspace {
     pub fn refresh(&mut self) -> Result<()> {
         let mut new_docs = Vec::new();
 
-        for entry in WalkDir::new(&self.root_dir).into_iter().filter_map(|e| e.ok()) {
+        for entry in WalkDir::new(&self.root_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
             if entry.file_type().is_file()
                 && entry.path().extension().is_some_and(|ext| ext == "md")
             {
@@ -121,7 +122,9 @@ impl Workspace {
                             .strip_suffix(".md")
                             .unwrap_or(&raw_target)
                             .to_string();
-                        map.entry(clean_target).or_default().push(doc.relative_path.clone());
+                        map.entry(clean_target)
+                            .or_default()
+                            .push(doc.relative_path.clone());
                     }
                 }
             }
@@ -418,7 +421,6 @@ Back to [[welcome]].
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -429,7 +431,10 @@ mod tests {
         assert_eq!(Workspace::extract_title(doc, "fallback"), "My Custom Title");
 
         let doc_no_title = "Just text\nAnother line";
-        assert_eq!(Workspace::extract_title(doc_no_title, "fallback"), "fallback");
+        assert_eq!(
+            Workspace::extract_title(doc_no_title, "fallback"),
+            "fallback"
+        );
     }
 
     #[test]
@@ -438,7 +443,11 @@ mod tests {
         let mut ws = Workspace::new(temp_dir.path().to_path_buf()).unwrap();
 
         let doc_path = ws.create_document("search_test.md").unwrap();
-        fs::write(&doc_path, "# Search Title\nLine with QuickBrownFox\nUnicode: Ω OmegaLaunch\n").unwrap();
+        fs::write(
+            &doc_path,
+            "# Search Title\nLine with QuickBrownFox\nUnicode: Ω OmegaLaunch\n",
+        )
+        .unwrap();
         ws.refresh().unwrap();
 
         // ASCII case-insensitive match

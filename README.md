@@ -1,9 +1,19 @@
 # skat-os
-### The Terminal Document Operating System (Doc-OS)
+
+[![CI](https://img.shields.io/github/actions/workflow/status/theon199/skat-os/ci.yml?branch=master&label=CI&style=flat-square)](https://github.com/theon199/skat-os/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/theon199/skat-os?style=flat-square&color=blue)](https://github.com/theon199/skat-os/releases)
+[![Crates.io](https://img.shields.io/crates/v/skat-os?style=flat-square&color=orange)](https://crates.io/crates/skat-os)
+[![Docs.rs](https://img.shields.io/docsrs/skat-os?style=flat-square)](https://docs.rs/skat-os)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE-MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat-square)](LICENSE-APACHE)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey?style=flat-square)](https://github.com/theon199/skat-os/releases)
+[![Rust](https://img.shields.io/badge/rust-2024%20edition-purple?style=flat-square)](Cargo.toml)
+
+### The Terminal Document Operating System (Doc-OS) & Real-Time Multiplayer Runbooks
 
 `skat-os` is a lightweight, distraction-free **Document Operating System** that runs directly inside your terminal. It flips traditional computing on its head: instead of running applications inside an OS that manage separate files, **the document is the operating system**.
 
-Documents act as living notes, wiki pages, runbooks, and interactive shells with **inline executable code blocks**.
+Documents act as living notes, wiki pages, runbooks, and interactive shells with **inline executable code blocks**, real-time peer-to-peer multiplayer collaboration, SSH fleet execution, dynamic credential vaults, and cryptographic audit logs.
 
 ```
 +--------------------------+-------------------------------------------------------+
@@ -34,7 +44,7 @@ Documents act as living notes, wiki pages, runbooks, and interactive shells with
 - **Document-as-an-OS**: Modeless, intuitive text editor powered by a high-performance `Ropey` rope buffer.
 - **Interactive Run-in-Place**: Embed fenced code blocks (`bash`, `sh`, `zsh`, `python`, `node`). Press **`Ctrl+R`** to execute them asynchronously without freezing the UI and inject collapsible output blocks inline.
 - **Hyperlinked Wiki & Backlinks**: Automatically detects `[[wiki-links]]` between documents and constructs a live bidirectional backlink graph in the sidebar.
-- **Unified Command Palette (`Ctrl+K`)**: One fuzzy-search modal to jump between documents, perform full-text grep across the workspace, create notes, or execute actions.
+- **Unified Command Palette (`Ctrl+K`)**: One fuzzy-search modal to jump between documents, perform full-text grep across the workspace, create notes, view audit logs, or execute actions.
 - **Zero Vendor Lock-In**: 100% standard plain Markdown (`.md`) files stored directly in your workspace directory (e.g. `./docs`). Fully compatible with Git, Obsidian, and Vim.
 - **Real-Time Multiplayer Collaboration**: Pair-write living runbooks over direct TCP connections with zero cloud or 3rd-party dependencies.
 - **Visual Multi-Cursor & Name Badges**: See teammates' cursors live with distinct ANSI colors and name badges (`[Alice]`, `[Bob]`), plus real-time connected peers status indicators.
@@ -59,11 +69,73 @@ Documents act as living notes, wiki pages, runbooks, and interactive shells with
 
 ---
 
+## Installation
+
+### Method 1: Single-Command Shell Installer (Recommended)
+
+Install `skat-os` directly on macOS or Linux with our official installer:
+
+```bash
+curl -sSf https://raw.githubusercontent.com/theon199/skat-os/master/install.sh | sh
+```
+
+The script automatically detects your OS and architecture, downloads the latest verified release binary, checks its SHA-256 checksum, and installs it to `/usr/local/bin` (or `~/.local/bin`).
+
+### Method 2: Cargo Install (crates.io)
+
+If you have the Rust toolchain installed:
+
+```bash
+cargo install skat-os
+```
+
+### Method 3: Pre-built Binary Packages
+
+Download pre-compiled release tarballs and checksums from [GitHub Releases](https://github.com/theon199/skat-os/releases):
+
+| Target Architecture | Binary Archive |
+| :--- | :--- |
+| **Linux x86_64** | `skat-os-v0.1.0-x86_64-unknown-linux-gnu.tar.gz` |
+| **Linux ARM64** | `skat-os-v0.1.0-aarch64-unknown-linux-gnu.tar.gz` |
+| **macOS Apple Silicon** | `skat-os-v0.1.0-aarch64-apple-darwin.tar.gz` |
+| **macOS Intel x86_64** | `skat-os-v0.1.0-x86_64-apple-darwin.tar.gz` |
+| **Windows x86_64** | `skat-os-v0.1.0-x86_64-pc-windows-msvc.zip` |
+
+### Method 4: Build from Source
+
+```bash
+# Clone repository
+git clone https://github.com/theon199/skat-os.git
+cd skat-os
+
+# Build release binary
+cargo build --release
+
+# Install binary to cargo bin path
+cargo install --path .
+```
+
+---
+
+## Documentation
+
+Explore the complete technical manuals and user guides in the [`docs/`](docs/) directory:
+
+- 🚀 [**Getting Started Guide**](docs/getting-started.md): Installation walkthrough, workspace setup, basic navigation, and running your first document runbook.
+- 📝 [**Interactive Documents & Living Runbooks**](docs/interactive-documents.md): Code execution, PTY streaming, task checklists, reactive variable interpolation, form widgets, tables, and sparklines.
+- 👥 [**Real-Time Multiplayer Collaboration**](docs/multiplayer.md): Peer-to-peer TCP room server, multi-cursor protocol, shared streaming, and collaborative consensus approvals.
+- 🌐 [**Remote Infrastructure Mesh & Fleet Execution**](docs/mesh-and-fleet.md): SSH target syntax, session pooling, bastion jump tunnels, and parallel cluster execution.
+- 🛡️ [**Zero-Trust Security, Dynamic Vault & Audit Trails**](docs/security-vault-audit.md): Destructive command guardrails, ChaCha20-Poly1305 encrypted frontmatter, secret redaction, and SHA-256 hash chains.
+- 📦 [**Maintainer & Release Engineering Guide**](docs/releasing.md): Step-by-step procedures for version tagging, GitHub Actions automation, and crates.io publishing.
+- 📋 [**Changelog**](CHANGELOG.md): Complete record of notable changes and release milestones.
+
+---
+
 ## Keyboard Shortcuts
 
 | Shortcut | Description |
 | :--- | :--- |
-| **`Ctrl+K`** | Open **Unified Command Palette** (switch docs, search text, actions) |
+| **`Ctrl+K`** | Open **Unified Command Palette** (switch docs, grep search, view audit log, actions) |
 | **`Ctrl+R`** | **Run Code Block** under cursor (interpolates prior outputs & captures output) |
 | **`Ctrl+Shift+R`** / **`F5`** | **Run All Blocks** sequentially (Playbook execution with fail-fast safeguard) |
 | **`Tab`** / **`Shift+Tab`** | **Navigate Form Parameters** forward / backward across document |
@@ -79,35 +151,30 @@ Documents act as living notes, wiki pages, runbooks, and interactive shells with
 | **`Ctrl+Z`** | **Undo** last edit |
 | **`Ctrl+Y`** | **Redo** last edit |
 | **`F1`** | Open interactive **Help & Keybindings Cheatsheet** |
-| **`Ctrl+Q`** | **Quit** skat-os safely |
+| **`Ctrl+Q`** | **Quit** skat-os safely (guards against unsaved changes) |
 
 ---
 
 ## Quick Start
 
-### 1. Build and Run
-Ensure you have Rust installed (`cargo --version`):
+### 1. Launching skat-os
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/skat-os.git
-cd skat-os
+# Launch with default workspace resolution (CLI path > $SKAT_WORKSPACE > ./docs > ~/notes)
+skat-os
 
-# Run skat-os (resolves: CLI path > $SKAT_WORKSPACE > ./docs > ~/notes)
-cargo run --release
-
-# Or launch with a custom directory
-cargo run --release -- ~/my-notes
+# Or launch pointing directly to your runbook directory
+skat-os ./my-runbooks
 ```
 
-On first launch, `skat-os` will automatically initialize starter templates:
-- `welcome.md`: Interactive overview and keybindings.
-- `daily.md`: Daily worklog, task checklists, and quick system diagnostics.
-- `runbook.md`: Living developer playbook with forms, tables, sparklines, and guardrails.
-- `fleet.md`: Remote multi-host SSH fleet diagnostics.
-- `architecture.md`: Philosophy of the Document Operating System.
+On first launch in a new directory, `skat-os` initializes interactive starter templates:
+- `welcome.md`: Interactive tour, living code blocks, and keybindings.
+- `daily.md`: Daily worklog with synced task checklists and quick system diagnostics.
+- `runbook.md`: Production runbook with parameterized forms, data tables, sparklines, and guardrails.
+- `fleet.md`: Multi-host remote SSH fleet diagnostics.
+- `architecture.md`: Philosophy and technical design of the Document Operating System.
 
-### 2. Built-in Multiplayer Collaboration (Phase 2)
+### 2. Built-in Multiplayer Collaboration
 
 Pair-write, review runbooks, and co-execute commands with teammates across terminals with **zero external cloud servers or accounts**:
 
@@ -122,15 +189,26 @@ skat-os join 127.0.0.1:2222 --name Bob
 skat-os host --port 2222 --workspace ./docs --headless
 ```
 
-- **Visual Multi-Cursor**: Teammates' cursors appear in real-time with vibrant ANSI colors and name tags (e.g. `[Bob]`).
+- **Visual Multi-Cursor**: Teammates' cursors appear in real time with vibrant ANSI colors and name tags (e.g. `[Bob]`).
 - **Connected Peers Badge**: Shows active collaborators in the status bar and sidebar tree with line/col positions.
 - **Shared Code Execution**: When either peer presses `Ctrl+R`, execution output updates synchronously on both screens.
 - **Auto-Sync & Resilience**: Full document sync on connect (`DocSync`), non-blocking disconnect handling, and automatic terminal window resize reflow.
 
-### 3. Running Tests
-```bash
-cargo test
+### 3. Remote Infrastructure Mesh & Fleet Execution
+
+Run commands seamlessly against remote servers or host clusters:
+
+````markdown
+```bash target="ssh://ops@prod-db.corp.net" name=db_status
+pg_isready -h localhost -p 5432
 ```
+
+```bash target="@web_servers" parallel=true name=check_nginx
+systemctl is-active nginx
+```
+````
+
+Navigate per-host results with `[` / `]` or arrow keys, and interpolate downstream variables (`{{check_nginx[0].stdout}}`).
 
 ---
 
@@ -143,16 +221,19 @@ skat-os/
 │   ├── lib.rs           # Core library crate exports
 │   ├── ansi.rs          # ANSI escape sequence parser, SGR style mapper & terminal stream processor
 │   ├── app.rs           # App state machine, focus manager, event routing & collab sync
+│   ├── audit.rs         # Append-only execution journal (.skat/audit.log) with SHA-256 hash chains
 │   ├── chart.rs         # Live ASCII & BarChart / Sparkline metric stream parser
 │   ├── cli.rs           # CLI subcommands (host, join, local) and argument parsing
 │   ├── form.rs          # Inline form parameter parser, badge toggler & cursor navigation
-│   ├── table.rs         # Structured data grid parser (JSON / CSV) & cell exporter
-│   ├── workspace.rs     # Workspace directory scanner, backlink graph, search
-│   ├── runner.rs        # Fenced code block detector, PTY runner, streaming injector, playbook engine
+│   ├── guard.rs         # Destructive command heuristics, confirmation modals, consensus voting
 │   ├── mesh.rs          # Remote SSH mesh, connection pooling, bastion tunnels, fleet fan-out
 │   ├── palette.rs       # Command palette fuzzy finder & action executor
-│   ├── collab/          # Built-in Multiplayer Engine (Phases 2, 4 & 5)
-│   │   ├── protocol.rs  # Wire protocol with ParamUpdate, StreamChunk & peer cursors
+│   ├── runner.rs        # Fenced code block detector, PTY runner, streaming injector, playbook engine
+│   ├── table.rs         # Structured data grid parser (JSON / CSV) & cell exporter
+│   ├── vault.rs         # ChaCha20-Poly1305 encrypted frontmatter, resolvers, zero-leak masking
+│   ├── workspace.rs     # Workspace directory scanner, backlink graph, search
+│   ├── collab/          # Built-in Multiplayer Engine (TCP Room Server & Client)
+│   │   ├── protocol.rs  # Wire protocol with ParamUpdate, StreamChunk, Approvals & peer cursors
 │   │   ├── server.rs    # Tokio TCP collaboration room server & parameter broadcaster
 │   │   ├── client.rs    # Tokio TCP client with background reader/writer channels
 │   │   └── mod.rs       # Collaboration module exports
@@ -160,7 +241,7 @@ skat-os/
 │   │   ├── mod.rs       # Editor file management & dirty tracking
 │   │   └── buffer.rs    # Modeless Ropey text buffer, remote edits, cursor motion, undo/redo
 │   └── ui/
-│       ├── mod.rs       # Dynamic split-pane layout, param prompt & table inspect modal
+│       ├── mod.rs       # Dynamic split-pane layout, param prompt, audit modal & table inspector
 │       ├── theme.rs     # Terminal color palette, parameter styles, table & chart colors
 │       ├── sidebar.rs   # Workspace document tree, connected peers list & backlink viewer
 │       ├── editor.rs    # Multi-cursor live renderer, parameter badges, tables, sparklines & fleet tabs
@@ -169,14 +250,16 @@ skat-os/
 │       ├── status_bar.rs# Status bar with Host/Client badges, Connected Peers, and hints
 │       └── help.rs      # Interactive keybinding cheatsheet overlay
 └── tests/
-    ├── core_tests.rs    # Unit & integration test suite (33 tests: forms, tables, charts, runner, app)
-    ├── collab_tests.rs  # Multiplayer integration tests (14 tests: param sync, streaming, cursors)
-    └── mesh_tests.rs    # Remote mesh & fleet fan-out tests (10 tests: SSH URI, pooling, fan-out, tabs)
+    ├── core_tests.rs              # Core editor, forms, tables, runner, and PTY test suite (43 tests)
+    ├── collab_tests.rs            # Multiplayer TCP room, cursor broadcast, streaming integration (15 tests)
+    ├── mesh_tests.rs              # Remote SSH mesh, connection pooling, and fleet fan-out tests (12 tests)
+    └── guard_vault_audit_tests.rs # Guardrails, encrypted secrets vault, audit hash chain tests (13 tests)
 ```
 
 ---
 
-## Roadmap
+## Roadmap & Production Milestones
+
 - [x] **Phase 1: Local Doc-OS Engine**
   - Modeless Ropey text editor
   - Collapsible dual-pane sidebar with backlinks graph
@@ -227,7 +310,6 @@ skat-os/
   - Parallel Cluster Fan-Out & Aggregated Output Canvas: Concurrent execution (`parallel=true`) with per-host status badges (`[10.0.0.1: ✓ exit 0] [10.0.0.2: ✖ exit 1]`) and interactive horizontal tab navigation (`[` / `]` or `Left` / `Right`)
   - Multi-Host Variable Interpolation & Chaining: Downstream indexing (`{{web_servers[0].stdout}}`), status aggregates (`{{web_servers.failed}}`, `{{web_servers.success}}`, `{{web_servers.count}}`), and auto-injected environment variables (`$SKAT_WEB_SERVERS_0_STDOUT`, `$SKAT_WEB_SERVERS_FAILED`)
   - Remote Interactive PTY & Multiplayer Live Streaming: Live remote ANSI terminal streaming, stdin forwarding, and real-time wire broadcasting (`StreamChunk`) with host metadata badges
-  - 76 total tests (19 unit tests, 33 core tests, 14 multiplayer integration tests, 10 remote mesh tests) ensuring zero regressions across all phases
 - [x] **Phase 7: Zero-Trust Guardrails, Dynamic Secret Vaults & Immutable Execution Audit Trails**
   - Dangerous Command Guardrails: Heuristic static analyzer flagging destructive patterns (`rm -rf /`, `mkfs`, `dd`, `DROP DATABASE`, `iptables -F`, `kubectl delete ns`)
   - Fenced Block Safety Attributes: `confirm="prompt"`, `danger=true`, `blast_radius="critical"`, and `dry_run=true` injecting `$SKAT_DRY_RUN=1`
@@ -238,4 +320,25 @@ skat-os/
   - Immutable Execution Audit Trail: `.skat/audit.log` journal with SHA-256 hash chaining, tracking execution ID, timestamp, initiator, target nodes, redacted command, parameters, exit code, duration, and input/output integrity hashes
   - Command Palette Audit Viewer: Searchable execution history modal (`Ctrl+K` -> `View Audit Log`) with cryptographic hash integrity verification badge
   - Unsaved Changes Guard & Prompt: Interactive modal (`[S]ave & Proceed` / `[D]iscard` / `[C]ancel`) guarding against accidental data loss on `Ctrl+Q` and document switching
-  - 102 total tests across all suites (31 unit tests, 14 multiplayer tests, 37 core tests, 10 remote mesh tests, 10 guard/vault/audit integration tests) with 100% pass rate
+  - **136 total tests across all suites** (53 unit tests, 43 core tests, 15 multiplayer tests, 12 remote mesh tests, 13 guard/vault/audit integration tests) with 100% pass rate
+
+---
+
+## Community & Contributing
+
+We welcome contributions of all kinds! Please read our community guidelines before contributing:
+
+- [**Contributing Guidelines**](CONTRIBUTING.md): Setup instructions, coding conventions, testing requirements, and pull request workflow.
+- [**Code of Conduct**](CODE_OF_CONDUCT.md): Contributor Covenant v2.1 standards for our open and welcoming community.
+- [**Security Policy**](SECURITY.md): Responsible disclosure procedures and security response commitments.
+
+---
+
+## License
+
+`skat-os` is dual-licensed under either:
+
+- **MIT License** ([LICENSE-MIT](LICENSE-MIT))
+- **Apache License, Version 2.0** ([LICENSE-APACHE](LICENSE-APACHE))
+
+at your option.

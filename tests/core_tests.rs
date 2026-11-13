@@ -8,7 +8,9 @@ use skat_os::workspace::Workspace;
 #[test]
 fn test_pty_sanity() {
     let pty_system = portable_pty::native_pty_system();
-    let pair = pty_system.openpty(portable_pty::PtySize::default()).unwrap();
+    let pair = pty_system
+        .openpty(portable_pty::PtySize::default())
+        .unwrap();
     let mut cmd = portable_pty::CommandBuilder::new("echo");
     cmd.args(["hello"]);
     let mut child = pair.slave.spawn_command(cmd).unwrap();
@@ -26,7 +28,9 @@ fn test_pty_sanity() {
 #[test]
 fn test_pty_interactive_stdin() {
     let pty_system = portable_pty::native_pty_system();
-    let pair = pty_system.openpty(portable_pty::PtySize::default()).unwrap();
+    let pair = pty_system
+        .openpty(portable_pty::PtySize::default())
+        .unwrap();
     let mut cmd = portable_pty::CommandBuilder::new("bash");
     cmd.args(["-c", "read -p 'prompt:' ans; echo \"got: $ans\""]);
     let mut child = pair.slave.spawn_command(cmd).unwrap();
@@ -52,7 +56,9 @@ fn test_pty_interactive_stdin() {
 #[test]
 fn test_pty_interruption() {
     let pty_system = portable_pty::native_pty_system();
-    let pair = pty_system.openpty(portable_pty::PtySize::default()).unwrap();
+    let pair = pty_system
+        .openpty(portable_pty::PtySize::default())
+        .unwrap();
     let mut cmd = portable_pty::CommandBuilder::new("bash");
     cmd.args(["-c", "sleep 10"]);
     let mut child = pair.slave.spawn_command(cmd).unwrap();
@@ -136,7 +142,9 @@ async fn test_runner_execution_and_output_injection() {
     let block = Runner::find_code_block(&buf, 3).expect("Code block should be found");
     let temp_dir = tempfile::tempdir().unwrap();
 
-    let result = Runner::execute(&block, temp_dir.path()).await.expect("Execution should succeed");
+    let result = Runner::execute(&block, temp_dir.path())
+        .await
+        .expect("Execution should succeed");
     assert_eq!(result.exit_code, 0);
     assert!(result.stdout.contains("42"));
 
@@ -202,7 +210,9 @@ fn test_command_palette_fuzzy_matching() {
     palette.insert_char('n', &ws, None);
 
     let top_item = palette.selected_item().unwrap();
-    assert!(top_item.label.to_lowercase().contains("runbook") || top_item.subtext.contains("runbook"));
+    assert!(
+        top_item.label.to_lowercase().contains("runbook") || top_item.subtext.contains("runbook")
+    );
 }
 
 #[test]
@@ -362,8 +372,14 @@ echo "Deploying {{step_b.stdout}}"
     let buf = TextBuffer::from_str(doc);
     let blocks = Runner::all_code_blocks(&buf);
 
-    assert_eq!(Runner::extract_dependencies(&blocks[1].code), vec!["step_a"]);
-    assert_eq!(Runner::extract_dependencies(&blocks[2].code), vec!["step_b"]);
+    assert_eq!(
+        Runner::extract_dependencies(&blocks[1].code),
+        vec!["step_a"]
+    );
+    assert_eq!(
+        Runner::extract_dependencies(&blocks[2].code),
+        vec!["step_b"]
+    );
 
     let deps = Runner::resolve_block_dependencies(&blocks).expect("Dependencies should resolve");
     assert_eq!(deps, vec![(0, vec![]), (1, vec![0]), (2, vec![1])]);
@@ -483,7 +499,12 @@ echo "Should not run"
     assert_eq!(report.total_steps, 3);
     assert_eq!(report.failed_step, Some(1));
     assert_eq!(report.failed_block_id, Some("step_2_failing".to_string()));
-    assert!(report.error_message.unwrap().contains("failed with exit code 7"));
+    assert!(
+        report
+            .error_message
+            .unwrap()
+            .contains("failed with exit code 7")
+    );
 
     // Step 3 was never executed
     assert_eq!(executed_ids, vec!["step_1_ok", "step_2_failing"]);
@@ -532,7 +553,9 @@ fn test_ansi_escape_parsing_to_ratatui_spans() {
     assert_eq!(spans[0].content, "PASSED");
     assert_eq!(
         spans[0].style,
-        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD)
     );
     assert_eq!(spans[1].content, " ");
     assert_eq!(spans[2].content, "FAIL");
@@ -541,16 +564,24 @@ fn test_ansi_escape_parsing_to_ratatui_spans() {
     assert_eq!(spans[4].content, "LINK");
     assert_eq!(
         spans[4].style,
-        Style::default().fg(Color::Blue).add_modifier(Modifier::UNDERLINED)
+        Style::default()
+            .fg(Color::Blue)
+            .add_modifier(Modifier::UNDERLINED)
     );
 
     // 2. 256 colors & 24-bit Truecolor
     let color_sample = "\x1b[38;5;82mIndexed82\x1b[0m \x1b[38;2;12;34;56mRGBText\x1b[0m";
     let color_spans = parse_ansi_spans(color_sample);
     assert_eq!(color_spans[0].content, "Indexed82");
-    assert_eq!(color_spans[0].style, Style::default().fg(Color::Indexed(82)));
+    assert_eq!(
+        color_spans[0].style,
+        Style::default().fg(Color::Indexed(82))
+    );
     assert_eq!(color_spans[2].content, "RGBText");
-    assert_eq!(color_spans[2].style, Style::default().fg(Color::Rgb(12, 34, 56)));
+    assert_eq!(
+        color_spans[2].style,
+        Style::default().fg(Color::Rgb(12, 34, 56))
+    );
 
     // 3. Strip ANSI codes
     assert_eq!(
@@ -583,7 +614,10 @@ fn test_incremental_stream_chunk_appending_and_buffer_management() {
         "Compiling core v0.1.0\n",
         &mut acc
     ));
-    assert!(buf.get_text().contains("```output [running]\nCompiling core v0.1.0\n```"));
+    assert!(
+        buf.get_text()
+            .contains("```output [running]\nCompiling core v0.1.0\n```")
+    );
 
     // 3. Incremental chunk 2: Progress bar with \r carriage return overwrite
     assert!(Runner::append_stream_chunk(
@@ -627,7 +661,10 @@ fn test_stream_interruption_buffer_management() {
     let mut buf = TextBuffer::from_str(doc);
 
     Runner::apply_streaming_status(&mut buf, "long_task", OutputStatus::Running, "Working...");
-    assert!(buf.get_text().contains("```output [running]\nWorking...\n```"));
+    assert!(
+        buf.get_text()
+            .contains("```output [running]\nWorking...\n```")
+    );
 
     Runner::apply_streaming_status(
         &mut buf,
@@ -646,7 +683,8 @@ fn test_stream_interruption_buffer_management() {
 
 #[tokio::test]
 async fn test_streaming_command_execution() {
-    let doc = "```bash name=stream_echo\necho \"First Line\"\nsleep 0.05\necho \"Second Line\"\n```\n";
+    let doc =
+        "```bash name=stream_echo\necho \"First Line\"\nsleep 0.05\necho \"Second Line\"\n```\n";
     let buf = TextBuffer::from_str(doc);
     let block = Runner::find_code_block(&buf, 1).unwrap();
     let temp_dir = tempfile::tempdir().unwrap();
@@ -841,13 +879,25 @@ fn test_form_parameter_inline_document_toggling_and_cycling() {
     buf.cursor_line = 0;
     buf.cursor_col = 15;
     let cycled = FormParser::toggle_or_cycle_at_cursor(&mut buf);
-    assert_eq!(cycled, Some(("CLUSTER".to_string(), "prod-eu-west".to_string())));
-    assert!(buf.line_to_string(0).contains("CLUSTER=prod-eu-west,staging,prod-us-east"));
+    assert_eq!(
+        cycled,
+        Some(("CLUSTER".to_string(), "prod-eu-west".to_string()))
+    );
+    assert!(
+        buf.line_to_string(0)
+            .contains("CLUSTER=prod-eu-west,staging,prod-us-east")
+    );
 
     // Cycle select again
     let cycled2 = FormParser::toggle_or_cycle_at_cursor(&mut buf);
-    assert_eq!(cycled2, Some(("CLUSTER".to_string(), "staging".to_string())));
-    assert!(buf.line_to_string(0).contains("CLUSTER=staging,prod-us-east,prod-eu-west"));
+    assert_eq!(
+        cycled2,
+        Some(("CLUSTER".to_string(), "staging".to_string()))
+    );
+    assert!(
+        buf.line_to_string(0)
+            .contains("CLUSTER=staging,prod-us-east,prod-eu-west")
+    );
 
     // 2. Toggle boolean
     buf.cursor_line = 1;
@@ -884,7 +934,8 @@ async fn test_form_parameter_variable_interpolation_and_env_vars() {
     params.insert("DRY_RUN".to_string(), "true".to_string());
 
     let template = "kubectl --cluster={{params.CLUSTER}} -n {{params.NAMESPACE}} apply --dry-run={{params.DRY_RUN}}";
-    let interpolated = Runner::interpolate_variables_with_params(template, &HashMap::new(), &params);
+    let interpolated =
+        Runner::interpolate_variables_with_params(template, &HashMap::new(), &params);
     assert_eq!(
         interpolated,
         "kubectl --cluster=prod-us-east -n billing apply --dry-run=true"
@@ -892,9 +943,18 @@ async fn test_form_parameter_variable_interpolation_and_env_vars() {
 
     // Test environment variables injection
     let env_vars = Runner::build_environment_variables_with_params(&HashMap::new(), &params);
-    assert_eq!(env_vars.get("SKAT_PARAM_CLUSTER"), Some(&"prod-us-east".to_string()));
-    assert_eq!(env_vars.get("SKAT_PARAM_NAMESPACE"), Some(&"billing".to_string()));
-    assert_eq!(env_vars.get("SKAT_PARAM_DRY_RUN"), Some(&"true".to_string()));
+    assert_eq!(
+        env_vars.get("SKAT_PARAM_CLUSTER"),
+        Some(&"prod-us-east".to_string())
+    );
+    assert_eq!(
+        env_vars.get("SKAT_PARAM_NAMESPACE"),
+        Some(&"billing".to_string())
+    );
+    assert_eq!(
+        env_vars.get("SKAT_PARAM_DRY_RUN"),
+        Some(&"true".to_string())
+    );
 
     // Test execution with environment variables
     let temp_dir = tempfile::tempdir().unwrap();
@@ -917,7 +977,9 @@ async fn test_form_parameter_variable_interpolation_and_env_vars() {
         approvals: 1,
     };
 
-    let result = Runner::execute_with_env(&block, temp_dir.path(), &env_vars).await.unwrap();
+    let result = Runner::execute_with_env(&block, temp_dir.path(), &env_vars)
+        .await
+        .unwrap();
     assert_eq!(result.exit_code, 0);
     assert!(result.stdout.contains("Cluster is prod-us-east in billing"));
 }
@@ -987,13 +1049,16 @@ async fn test_structured_table_variable_interpolation_and_env_vars() {
     );
 
     // Verify environment variables
-    let env_vars = Runner::build_environment_variables_with_context(
-        &HashMap::new(),
-        &HashMap::new(),
-        &tables,
+    let env_vars =
+        Runner::build_environment_variables_with_context(&HashMap::new(), &HashMap::new(), &tables);
+    assert_eq!(
+        env_vars.get("SKAT_GET_SERVICES_SELECTED_PORT"),
+        Some(&"8080".to_string())
     );
-    assert_eq!(env_vars.get("SKAT_GET_SERVICES_SELECTED_PORT"), Some(&"8080".to_string()));
-    assert_eq!(env_vars.get("SKAT_GET_SERVICES_SELECTED_ID"), Some(&"svc-web".to_string()));
+    assert_eq!(
+        env_vars.get("SKAT_GET_SERVICES_SELECTED_ID"),
+        Some(&"svc-web".to_string())
+    );
 
     // 2. Select row 1 (svc-db) and verify dynamic reactive update
     table.select_next_row();
@@ -1010,13 +1075,16 @@ async fn test_structured_table_variable_interpolation_and_env_vars() {
         "curl http://localhost:5432 # connecting to svc-db"
     );
 
-    let env_vars2 = Runner::build_environment_variables_with_context(
-        &HashMap::new(),
-        &HashMap::new(),
-        &tables,
+    let env_vars2 =
+        Runner::build_environment_variables_with_context(&HashMap::new(), &HashMap::new(), &tables);
+    assert_eq!(
+        env_vars2.get("SKAT_GET_SERVICES_SELECTED_PORT"),
+        Some(&"5432".to_string())
     );
-    assert_eq!(env_vars2.get("SKAT_GET_SERVICES_SELECTED_PORT"), Some(&"5432".to_string()));
-    assert_eq!(env_vars2.get("SKAT_GET_SERVICES_SELECTED_ID"), Some(&"svc-db".to_string()));
+    assert_eq!(
+        env_vars2.get("SKAT_GET_SERVICES_SELECTED_ID"),
+        Some(&"svc-db".to_string())
+    );
 }
 
 #[test]
@@ -1065,7 +1133,12 @@ fn test_app_interactive_form_tab_navigation_and_shortcuts() {
     // Press Space: should cycle CLUSTER dropdown to prod-eu-west
     app.handle_key_event(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE));
     assert_eq!(app.params.get("CLUSTER"), Some(&"prod-eu-west".to_string()));
-    assert!(app.editor.buffer.line_to_string(2).contains("CLUSTER=prod-eu-west,prod-us-east"));
+    assert!(
+        app.editor
+            .buffer
+            .line_to_string(2)
+            .contains("CLUSTER=prod-eu-west,prod-us-east")
+    );
 
     // Press Tab again: should focus next parameter (DRY_RUN)
     app.handle_key_event(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
@@ -1075,7 +1148,12 @@ fn test_app_interactive_form_tab_navigation_and_shortcuts() {
     // Press Space: should toggle DRY_RUN from true to false
     app.handle_key_event(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE));
     assert_eq!(app.params.get("DRY_RUN"), Some(&"false".to_string()));
-    assert!(app.editor.buffer.line_to_string(3).contains("DRY_RUN=false"));
+    assert!(
+        app.editor
+            .buffer
+            .line_to_string(3)
+            .contains("DRY_RUN=false")
+    );
 
     // Press Tab again: should focus APP input
     app.handle_key_event(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
@@ -1083,7 +1161,10 @@ fn test_app_interactive_form_tab_navigation_and_shortcuts() {
 
     // Press Enter on input parameter: should enter ParamPrompt mode
     app.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-    assert!(matches!(app.mode, skat_os::app::AppMode::ParamPrompt { .. }));
+    assert!(matches!(
+        app.mode,
+        skat_os::app::AppMode::ParamPrompt { .. }
+    ));
 
     // Type new parameter value: "api" + Enter
     app.handle_key_event(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
@@ -1156,7 +1237,11 @@ echo "Testing service on port $SKAT_LIST_SERVICES_SELECTED_PORT in $SKAT_PARAM_E
     let end1 = step_end_rx.recv().await.unwrap();
     assert_eq!(end1.1, "test_service");
     // Verify downstream block executed with chained table selected port and parameter ENV!
-    assert!(end1.2.stdout.contains("Testing service on port 3000 in staging environment"));
+    assert!(
+        end1.2
+            .stdout
+            .contains("Testing service on port 3000 in staging environment")
+    );
 }
 
 #[test]
@@ -1224,7 +1309,11 @@ fn test_expanded_seed_documents_and_backlinks() {
 
     // Check backlinks from welcome to daily and fleet
     let daily_backlinks = ws.get_backlinks_for(&dir.path().join("daily.md"));
-    assert!(daily_backlinks.iter().any(|l| l.contains("welcome.md") || l.contains("architecture.md")));
+    assert!(
+        daily_backlinks
+            .iter()
+            .any(|l| l.contains("welcome.md") || l.contains("architecture.md"))
+    );
 }
 
 #[test]
@@ -1321,7 +1410,8 @@ fn test_runner_variable_interpolation_colons_and_dots_regression() {
     params.insert("REGION".to_string(), "us-east-1".to_string());
     params.insert("HOST".to_string(), "prod.server".to_string());
 
-    let template = "curl http://{{param.HOST}}:8080/deploy?region={{param:REGION}}&r2={{params.REGION}}";
+    let template =
+        "curl http://{{param.HOST}}:8080/deploy?region={{param:REGION}}&r2={{params.REGION}}";
     let interpolated = Runner::interpolate_variables_with_context(
         template,
         &HashMap::new(),
@@ -1364,13 +1454,11 @@ fn test_editor_save_auto_creates_directories_regression() {
     let buf = TextBuffer::from_str("# Deeply Nested Document\n");
     let mut editor = Editor::new();
     editor.buffer = buf;
-    editor.save_as(&target_path).expect("save_as should auto-create parent directories");
+    editor
+        .save_as(&target_path)
+        .expect("save_as should auto-create parent directories");
 
     assert!(target_path.exists());
     let saved_content = std::fs::read_to_string(&target_path).unwrap();
     assert_eq!(saved_content, "# Deeply Nested Document\n");
 }
-
-
-
-

@@ -2,15 +2,17 @@ use anyhow::Result;
 use crossterm::cursor::Show;
 use crossterm::event::{self, Event, KeyEventKind};
 use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
-use ratatui::backend::CrosstermBackend;
+use crossterm::terminal::{
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+};
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 use std::env;
 use std::io::stdout;
 use std::time::Duration;
 
 use skat_os::app::App;
-use skat_os::cli::{parse_cli_args, CliCommand};
+use skat_os::cli::{CliCommand, parse_cli_args};
 use skat_os::collab::CollabServer;
 use skat_os::ui::UI;
 use skat_os::workspace::Workspace;
@@ -32,7 +34,9 @@ async fn main() -> Result<()> {
         println!("skat-os - Terminal Document Operating System & Real-Time Multiplayer Runbooks\n");
         println!("USAGE:");
         println!("    skat-os [WORKSPACE]");
-        println!("    skat-os host [--port <PORT>] [--workspace <PATH>] [--name <NAME>] [--headless]");
+        println!(
+            "    skat-os host [--port <PORT>] [--workspace <PATH>] [--name <NAME>] [--headless]"
+        );
         println!("    skat-os join <HOST:PORT> [--name <NAME>]\n");
         println!("COMMANDS:");
         println!("    host    Start an ephemeral collaboration room server and launch TUI");
@@ -59,15 +63,25 @@ async fn main() -> Result<()> {
         let first_doc = ws.docs.first().map(|d| d.path.clone());
         let (initial_content, doc_name) = if let Some(path) = first_doc {
             let content = std::fs::read_to_string(&path).unwrap_or_default();
-            let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+            let name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
             (content, name)
         } else {
-            ("# Welcome\n\nShared Document Room\n".to_string(), "welcome.md".to_string())
+            (
+                "# Welcome\n\nShared Document Room\n".to_string(),
+                "welcome.md".to_string(),
+            )
         };
 
         let bind_addr = format!("0.0.0.0:{}", port);
         let server_handle = CollabServer::bind(&bind_addr, initial_content, doc_name).await?;
-        println!("Collaboration server listening on {}", server_handle.local_addr);
+        println!(
+            "Collaboration server listening on {}",
+            server_handle.local_addr
+        );
         println!("Press Ctrl+C to stop.");
         tokio::signal::ctrl_c().await?;
         println!("\nServer stopped.");
@@ -172,9 +186,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn cleanup_terminal(
-    terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
-) -> Result<()> {
+fn cleanup_terminal(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<()> {
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen, Show)?;
     let _ = terminal.show_cursor();

@@ -1,8 +1,8 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem};
-use ratatui::Frame;
 
 use crate::app::{App, CollabMode, FocusPane};
 use crate::collab::peer_color;
@@ -21,7 +21,14 @@ impl SidebarView {
             } else {
                 Theme::TITLE_INACTIVE
             })
-            .title(Span::styled(" Workspace ", if is_focused { Theme::TITLE_ACTIVE } else { Theme::TITLE_INACTIVE }));
+            .title(Span::styled(
+                " Workspace ",
+                if is_focused {
+                    Theme::TITLE_ACTIVE
+                } else {
+                    Theme::TITLE_INACTIVE
+                },
+            ));
 
         let inner_area = block.inner(area);
         frame.render_widget(block, area);
@@ -41,10 +48,7 @@ impl SidebarView {
         } else {
             Layout::default()
                 .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Percentage(65),
-                    Constraint::Percentage(35),
-                ])
+                .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
                 .split(inner_area)
         };
 
@@ -158,10 +162,7 @@ impl SidebarView {
         }
 
         let backlinks_chunk_idx = if is_collab { 2 } else { 1 };
-        let backlinks_list = List::new(backlink_items).block(
-            Block::default()
-                .title(" Backlinks "),
-        );
+        let backlinks_list = List::new(backlink_items).block(Block::default().title(" Backlinks "));
         frame.render_widget(backlinks_list, chunks[backlinks_chunk_idx]);
     }
 }

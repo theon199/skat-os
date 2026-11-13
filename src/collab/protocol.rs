@@ -24,9 +24,7 @@ impl PeerInfo {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CollabMessage {
     /// Initial request from a joining client to the server
-    JoinRequest {
-        name: String,
-    },
+    JoinRequest { name: String },
 
     /// Full state sync sent from server to joining client (and on reconnect/file switch)
     DocSync {
@@ -38,14 +36,10 @@ pub enum CollabMessage {
     },
 
     /// Broadcast when a new peer joins the room
-    PeerJoined {
-        peer: PeerInfo,
-    },
+    PeerJoined { peer: PeerInfo },
 
     /// Broadcast when a peer disconnects
-    PeerLeft {
-        peer_id: String,
-    },
+    PeerLeft { peer_id: String },
 
     /// Single character inserted at character offset `pos` in the document
     InsertChar {
@@ -55,10 +49,7 @@ pub enum CollabMessage {
     },
 
     /// Single character deleted at character offset `pos` in the document
-    DeleteChar {
-        peer_id: String,
-        pos: usize,
-    },
+    DeleteChar { peer_id: String, pos: usize },
 
     /// Cursor movement event to line and column
     CursorMove {
@@ -68,10 +59,7 @@ pub enum CollabMessage {
     },
 
     /// Trigger command block execution
-    RunBlock {
-        peer_id: String,
-        block_id: String,
-    },
+    RunBlock { peer_id: String, block_id: String },
 
     /// Synchronized live output update for a code block
     OutputUpdate {
@@ -89,10 +77,7 @@ pub enum CollabMessage {
     },
 
     /// Real-time live output streaming: stream started
-    StreamStart {
-        peer_id: String,
-        block_id: String,
-    },
+    StreamStart { peer_id: String, block_id: String },
 
     /// Real-time live output streaming: incremental chunk
     StreamChunk {

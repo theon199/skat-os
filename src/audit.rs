@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::fs::{create_dir_all, File, OpenOptions};
+use std::fs::{File, OpenOptions, create_dir_all};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 
@@ -90,12 +90,16 @@ pub struct AuditRecorder {
 impl AuditRecorder {
     pub fn new(root_dir: &Path) -> Result<Self> {
         let skat_dir = root_dir.join(".skat");
-        create_dir_all(&skat_dir).with_context(|| format!("Failed to create directory {:?}", skat_dir))?;
+        create_dir_all(&skat_dir)
+            .with_context(|| format!("Failed to create directory {:?}", skat_dir))?;
         let log_path = skat_dir.join("audit.log");
 
         let last_hash = Self::read_last_hash(&log_path).unwrap_or_else(|| GENESIS_HASH.to_string());
 
-        Ok(Self { log_path, last_hash })
+        Ok(Self {
+            log_path,
+            last_hash,
+        })
     }
 
     /// Reads the last hash from the log file, or None if empty
@@ -138,11 +142,7 @@ impl AuditRecorder {
         let timestamp: DateTime<Utc> = Utc::now();
         let ts_str = timestamp.to_rfc3339();
 
-        let execution_id = format!(
-            "exec_{}_{:x}",
-            timestamp.timestamp(),
-            fastrand_hex()
-        );
+        let execution_id = format!("exec_{}_{:x}", timestamp.timestamp(), fastrand_hex());
 
         let output_preview_truncated: String = output_preview.chars().take(500).collect();
 

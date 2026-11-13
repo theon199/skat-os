@@ -6,11 +6,11 @@ pub mod sidebar;
 pub mod status_bar;
 pub mod theme;
 
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
-use ratatui::Frame;
 
 use crate::app::{App, AppMode};
 use crate::guard::DangerLevel;
@@ -54,10 +54,7 @@ impl UI {
             let sidebar_width = (workspace_area.width * 25 / 100).clamp(24, 38);
             let h_chunks = Layout::default()
                 .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Length(sidebar_width),
-                    Constraint::Min(30),
-                ])
+                .constraints([Constraint::Length(sidebar_width), Constraint::Min(30)])
                 .split(workspace_area);
 
             SidebarView::render(app, frame, h_chunks[0]);
@@ -164,10 +161,18 @@ impl UI {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(if is_secret { Theme::PARAM_SECRET } else { Theme::TITLE_ACTIVE })
+            .border_style(if is_secret {
+                Theme::PARAM_SECRET
+            } else {
+                Theme::TITLE_ACTIVE
+            })
             .title(Span::styled(
                 title_text,
-                if is_secret { Theme::PARAM_SECRET } else { Theme::TITLE_ACTIVE },
+                if is_secret {
+                    Theme::PARAM_SECRET
+                } else {
+                    Theme::TITLE_ACTIVE
+                },
             ));
 
         let inner = block.inner(popup_area);
@@ -195,18 +200,20 @@ impl UI {
         frame.render_widget(p, inner);
 
         // Cursor
-        let cursor_x = inner.x + 7 + (display_val.chars().count() as u16).min(inner.width.saturating_sub(8));
+        let cursor_x =
+            inner.x + 7 + (display_val.chars().count() as u16).min(inner.width.saturating_sub(8));
         let cursor_y = inner.y;
         frame.set_cursor_position((cursor_x, cursor_y));
     }
 
-    fn render_confirm_execution_modal(
-        params: ConfirmModalParams,
-        frame: &mut Frame,
-        area: Rect,
-    ) {
+    fn render_confirm_execution_modal(params: ConfirmModalParams, frame: &mut Frame, area: Rect) {
         let width = 72.min(area.width.saturating_sub(4)).max(40);
-        let height = if params.keyword_required.is_some() { 12 } else { 9 }.min(area.height.saturating_sub(2));
+        let height = if params.keyword_required.is_some() {
+            12
+        } else {
+            9
+        }
+        .min(area.height.saturating_sub(2));
 
         let x = area.x + (area.width.saturating_sub(width)) / 2;
         let y = area.y + (area.height.saturating_sub(height)) / 2;
@@ -218,7 +225,9 @@ impl UI {
         let border_style = if is_critical {
             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         };
 
         let title_str = if is_critical {
@@ -241,11 +250,23 @@ impl UI {
             params.target_hosts.join(", ")
         };
 
-        let cmd_preview: String = params.command.lines().next().unwrap_or(params.command).chars().take(55).collect();
+        let cmd_preview: String = params
+            .command
+            .lines()
+            .next()
+            .unwrap_or(params.command)
+            .chars()
+            .take(55)
+            .collect();
 
         let mut lines = vec![
             Line::from(vec![
-                Span::styled("Warning: ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "Warning: ",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(params.prompt.to_string(), Style::default().fg(Color::White)),
             ]),
             Line::from(vec![
@@ -261,8 +282,16 @@ impl UI {
 
         if let Some(kw) = params.keyword_required {
             lines.push(Line::from(vec![
-                Span::styled(format!("Type '{}' to confirm: ", kw), Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD)),
-                Span::styled(format!("[{}]_", params.keyword_input), Theme::PALETTE_SELECTED),
+                Span::styled(
+                    format!("Type '{}' to confirm: ", kw),
+                    Style::default()
+                        .fg(Color::LightRed)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!("[{}]_", params.keyword_input),
+                    Theme::PALETTE_SELECTED,
+                ),
             ]));
             lines.push(Line::from(""));
         }
@@ -302,10 +331,18 @@ impl UI {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(if integrity_verified { Theme::TITLE_ACTIVE } else { Theme::DANGER_BANNER })
+            .border_style(if integrity_verified {
+                Theme::TITLE_ACTIVE
+            } else {
+                Theme::DANGER_BANNER
+            })
             .title(Span::styled(
                 format!(" Execution Audit Log Timeline [{}] ", status_title),
-                if integrity_verified { Theme::TITLE_ACTIVE } else { Theme::DANGER_BANNER },
+                if integrity_verified {
+                    Theme::TITLE_ACTIVE
+                } else {
+                    Theme::DANGER_BANNER
+                },
             ));
 
         let inner = block.inner(popup_area);
@@ -327,7 +364,9 @@ impl UI {
                 e.command.to_lowercase().contains(&q_lower)
                     || e.block_id.to_lowercase().contains(&q_lower)
                     || e.collaborator.to_lowercase().contains(&q_lower)
-                    || e.target_hosts.iter().any(|h| h.to_lowercase().contains(&q_lower))
+                    || e.target_hosts
+                        .iter()
+                        .any(|h| h.to_lowercase().contains(&q_lower))
                     || e.hash.to_lowercase().contains(&q_lower)
             })
             .collect();
@@ -336,7 +375,12 @@ impl UI {
 
         // Search bar
         lines.push(Line::from(vec![
-            Span::styled("Search: ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Search: ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(format!("[{}]_", search_query), Theme::PALETTE_SELECTED),
             Span::raw(format!("  ({} entries)", filtered.len())),
         ]));
@@ -356,27 +400,60 @@ impl UI {
                 Style::default().fg(Color::DarkGray),
             )));
         } else {
-            for (idx, entry) in filtered.iter().enumerate().skip(start_idx).take(available_rows) {
+            for (idx, entry) in filtered
+                .iter()
+                .enumerate()
+                .skip(start_idx)
+                .take(available_rows)
+            {
                 let is_sel = idx == selected_index;
                 let status_badge = if entry.exit_code == 0 {
-                    Span::styled(" [OK] ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+                    Span::styled(
+                        " [OK] ",
+                        Style::default()
+                            .fg(Color::Green)
+                            .add_modifier(Modifier::BOLD),
+                    )
                 } else {
-                    Span::styled(format!(" [ERR:{}] ", entry.exit_code), Style::default().fg(Color::Red).add_modifier(Modifier::BOLD))
+                    Span::styled(
+                        format!(" [ERR:{}] ", entry.exit_code),
+                        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                    )
                 };
 
                 let ts_short: String = entry.timestamp.chars().take(19).collect();
                 let hosts_str = entry.target_hosts.join(",");
-                let cmd_short: String = entry.command.lines().next().unwrap_or(&entry.command).chars().take(28).collect();
+                let cmd_short: String = entry
+                    .command
+                    .lines()
+                    .next()
+                    .unwrap_or(&entry.command)
+                    .chars()
+                    .take(28)
+                    .collect();
                 let hash_short: String = entry.hash.chars().take(8).collect();
 
                 let row_spans = vec![
-                    if is_sel { Span::styled("▶ ", Theme::PALETTE_SELECTED) } else { Span::raw("  ") },
+                    if is_sel {
+                        Span::styled("▶ ", Theme::PALETTE_SELECTED)
+                    } else {
+                        Span::raw("  ")
+                    },
                     status_badge,
                     Span::styled(format!("{} ", ts_short), Style::default().fg(Color::Gray)),
-                    Span::styled(format!("{} ", entry.collaborator), Style::default().fg(Color::Magenta)),
+                    Span::styled(
+                        format!("{} ", entry.collaborator),
+                        Style::default().fg(Color::Magenta),
+                    ),
                     Span::styled(format!("@{} ", hosts_str), Style::default().fg(Color::Cyan)),
-                    Span::styled(format!("'{}' ", cmd_short), Style::default().fg(Color::LightGreen)),
-                    Span::styled(format!("#{}", hash_short), Style::default().fg(Color::Yellow)),
+                    Span::styled(
+                        format!("'{}' ", cmd_short),
+                        Style::default().fg(Color::LightGreen),
+                    ),
+                    Span::styled(
+                        format!("#{}", hash_short),
+                        Style::default().fg(Color::Yellow),
+                    ),
                 ];
 
                 let row_style = if is_sel {
@@ -394,23 +471,38 @@ impl UI {
         if let Some(selected_entry) = filtered.get(selected_index) {
             lines.push(Line::from(vec![
                 Span::styled("Command: ", Style::default().fg(Color::Yellow)),
-                Span::styled(selected_entry.command.clone(), Style::default().fg(Color::White)),
+                Span::styled(
+                    selected_entry.command.clone(),
+                    Style::default().fg(Color::White),
+                ),
             ]));
             lines.push(Line::from(vec![
                 Span::styled("Hash: ", Style::default().fg(Color::Cyan)),
-                Span::styled(selected_entry.hash.clone(), Style::default().fg(Color::LightCyan)),
+                Span::styled(
+                    selected_entry.hash.clone(),
+                    Style::default().fg(Color::LightCyan),
+                ),
                 Span::raw(" | "),
                 Span::styled("Prev: ", Style::default().fg(Color::Gray)),
-                Span::styled(selected_entry.prev_hash.chars().take(16).collect::<String>() + "...", Style::default().fg(Color::Gray)),
+                Span::styled(
+                    selected_entry
+                        .prev_hash
+                        .chars()
+                        .take(16)
+                        .collect::<String>()
+                        + "...",
+                    Style::default().fg(Color::Gray),
+                ),
             ]));
         } else {
             lines.push(Line::from(""));
             lines.push(Line::from(""));
         }
 
-        lines.push(Line::from(vec![
-            Span::styled(" [▲/▼] Navigate    [Esc] Close    [Enter] Select ", Theme::PALETTE_SELECTED),
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            " [▲/▼] Navigate    [Esc] Close    [Enter] Select ",
+            Theme::PALETTE_SELECTED,
+        )]));
 
         let p = Paragraph::new(lines);
         frame.render_widget(p, inner);
@@ -423,16 +515,13 @@ impl UI {
         frame: &mut Frame,
         area: Rect,
     ) {
-        let tbl_opt = app
-            .table_states
-            .get(block_id)
-            .or_else(|| {
-                // Check if any block has this id as name
-                app.table_states
-                    .iter()
-                    .find(|(k, _)| k.eq_ignore_ascii_case(block_id))
-                    .map(|(_, v)| v)
-            });
+        let tbl_opt = app.table_states.get(block_id).or_else(|| {
+            // Check if any block has this id as name
+            app.table_states
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case(block_id))
+                .map(|(_, v)| v)
+        });
 
         let (headers, row, total_rows) = if let Some(tbl) = tbl_opt {
             let r = tbl.rows.get(row_index).cloned().unwrap_or_default();
@@ -441,8 +530,12 @@ impl UI {
             (Vec::new(), Vec::new(), 0)
         };
 
-        let width = (area.width * 70 / 100).clamp(40, 80).min(area.width.saturating_sub(2));
-        let height = (headers.len() as u16 + 5).clamp(8, 25).min(area.height.saturating_sub(2));
+        let width = (area.width * 70 / 100)
+            .clamp(40, 80)
+            .min(area.width.saturating_sub(2));
+        let height = (headers.len() as u16 + 5)
+            .clamp(8, 25)
+            .min(area.height.saturating_sub(2));
 
         let x = area.x + (area.width.saturating_sub(width)) / 2;
         let y = area.y + (area.height.saturating_sub(height)) / 2;
@@ -454,7 +547,12 @@ impl UI {
             .borders(Borders::ALL)
             .border_style(Theme::TITLE_ACTIVE)
             .title(Span::styled(
-                format!(" Row Inspection: {} (Row {}/{}) ", block_id, row_index + 1, total_rows),
+                format!(
+                    " Row Inspection: {} (Row {}/{}) ",
+                    block_id,
+                    row_index + 1,
+                    total_rows
+                ),
                 Theme::TITLE_ACTIVE,
             ));
 
@@ -502,10 +600,16 @@ impl UI {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+            .border_style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
             .title(Span::styled(
                 " Unsaved Changes ",
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             ));
 
         let inner = block.inner(popup_area);
@@ -514,16 +618,34 @@ impl UI {
         let lines = vec![
             Line::from(vec![
                 Span::raw(" '"),
-                Span::styled(doc_name, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    doc_name,
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(format!("' has unsaved changes before {}!", action_str)),
             ]),
             Line::from(""),
             Line::from(vec![
-                Span::styled(" [S] ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    " [S] ",
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("Save & Proceed   "),
-                Span::styled("[D] ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "[D] ",
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("Discard   "),
-                Span::styled("[C / Esc] ", Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "[C / Esc] ",
+                    Style::default()
+                        .fg(Color::DarkGray)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw("Cancel"),
             ]),
         ];

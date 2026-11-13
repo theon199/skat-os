@@ -10,13 +10,11 @@ static RM_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
-static RM_NO_PRESERVE_ROOT: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\brm\s+.*?--no-preserve-root\b").unwrap()
-});
+static RM_NO_PRESERVE_ROOT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\brm\s+.*?--no-preserve-root\b").unwrap());
 
-static MKFS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\bmkfs(?:\.[a-z0-9]+)?\b").unwrap()
-});
+static MKFS_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\bmkfs(?:\.[a-z0-9]+)?\b").unwrap());
 
 static DD_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)\bdd\s+.*of=["']?/dev/(?:r?disk\d+|sd[a-z]\d*|nvme\d+n\d+(?:p\d+)?|vd[a-z]\d*|mapper/)"#)
@@ -24,7 +22,10 @@ static DD_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static DROP_DB_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)\bDROP\s+(?:DATABASE|SCHEMA)\s+(?:IF\s+EXISTS\s+)?([`"']?[a-zA-Z0-9_]+[`"']?)"#).unwrap()
+    Regex::new(
+        r#"(?i)\bDROP\s+(?:DATABASE|SCHEMA)\s+(?:IF\s+EXISTS\s+)?([`"']?[a-zA-Z0-9_]+[`"']?)"#,
+    )
+    .unwrap()
 });
 
 static DROP_TBL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
@@ -35,17 +36,15 @@ static TRUNCATE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"(?i)\bTRUNCATE\s+(?:TABLE\s+)?(?:ONLY\s+)?([`"']?[a-zA-Z0-9_]+[`"']?)"#).unwrap()
 });
 
-static IPTABLES_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\biptables\s+.*(?:-F|--flush|-X|--delete-chain)\b").unwrap()
-});
+static IPTABLES_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\biptables\s+.*(?:-F|--flush|-X|--delete-chain)\b").unwrap());
 
 static K8S_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\bkubectl\s+delete\s+(?:namespaces?|ns|nodes?|all)\b").unwrap()
 });
 
-static FORKBOMB_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r":\(\)\s*\{\s*:\|:&\s*\};:").unwrap()
-});
+static FORKBOMB_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r":\(\)\s*\{\s*:\|:&\s*\};:").unwrap());
 
 static CHMOD_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\bchmod\s+-[a-z0-9]*r[a-z0-9]*\s+(?:0?777)\s+(?:/|/\*)").unwrap()
@@ -102,31 +101,46 @@ impl StaticAnalyzer {
         if let Some(caps) = RM_REGEX.captures(code) {
             matched_patterns.push(caps[0].to_string());
             highest_level = DangerLevel::Critical;
-            reasons.push(format!("Recursive filesystem wipe detected ('{}')", &caps[0]));
+            reasons.push(format!(
+                "Recursive filesystem wipe detected ('{}')",
+                &caps[0]
+            ));
         } else if let Some(caps) = RM_NO_PRESERVE_ROOT.captures(code) {
             matched_patterns.push(caps[0].to_string());
             highest_level = DangerLevel::Critical;
-            reasons.push(format!("Filesystem wipe with --no-preserve-root detected ('{}')", &caps[0]));
+            reasons.push(format!(
+                "Filesystem wipe with --no-preserve-root detected ('{}')",
+                &caps[0]
+            ));
         }
 
         // 2. Drive formatting and low-level block overwriting: mkfs, dd to device
         if let Some(caps) = MKFS_REGEX.captures(code) {
             matched_patterns.push(caps[0].to_string());
             highest_level = DangerLevel::Critical.max(highest_level);
-            reasons.push(format!("Filesystem creation/format command detected ('{}')", &caps[0]));
+            reasons.push(format!(
+                "Filesystem creation/format command detected ('{}')",
+                &caps[0]
+            ));
         }
 
         if let Some(caps) = DD_REGEX.captures(code) {
             matched_patterns.push(caps[0].to_string());
             highest_level = DangerLevel::Critical.max(highest_level);
-            reasons.push(format!("Raw disk block overwrite detected ('{}')", &caps[0]));
+            reasons.push(format!(
+                "Raw disk block overwrite detected ('{}')",
+                &caps[0]
+            ));
         }
 
         // 3. Database destructive actions: DROP DATABASE, DROP SCHEMA, DROP TABLE, TRUNCATE
         if let Some(caps) = DROP_DB_REGEX.captures(code) {
             matched_patterns.push(caps[0].to_string());
             highest_level = DangerLevel::Critical.max(highest_level);
-            reasons.push(format!("Database/schema deletion detected ('{}')", &caps[0]));
+            reasons.push(format!(
+                "Database/schema deletion detected ('{}')",
+                &caps[0]
+            ));
         }
 
         if let Some(caps) = DROP_TBL_REGEX.captures(code) {
@@ -152,7 +166,10 @@ impl StaticAnalyzer {
         if let Some(caps) = K8S_REGEX.captures(code) {
             matched_patterns.push(caps[0].to_string());
             highest_level = DangerLevel::Critical.max(highest_level);
-            reasons.push(format!("Kubernetes cluster resource deletion detected ('{}')", &caps[0]));
+            reasons.push(format!(
+                "Kubernetes cluster resource deletion detected ('{}')",
+                &caps[0]
+            ));
         }
 
         // 6. Fork bombs
@@ -279,7 +296,8 @@ mod tests {
 
     #[test]
     fn test_approval_consensus() {
-        let mut consensus = ApprovalConsensus::new("deploy_prod".to_string(), "deploy.sh".to_string(), 2);
+        let mut consensus =
+            ApprovalConsensus::new("deploy_prod".to_string(), "deploy.sh".to_string(), 2);
         assert!(!consensus.is_approved());
         assert_eq!(consensus.current_count(), 0);
 

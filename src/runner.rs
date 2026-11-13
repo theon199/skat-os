@@ -9,12 +9,12 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 
-static SEC_INTERPOLATE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\{\{\s*secrets?[:.]([a-zA-Z0-9_./:#=-]+)\s*\}\}").unwrap()
-});
+static SEC_INTERPOLATE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\{\{\s*secrets?[:.]([a-zA-Z0-9_./:#=-]+)\s*\}\}").unwrap());
 
 static VAR_INTERPOLATE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\{\{\s*([a-zA-Z0-9_-]+)(?:\[(\d+)\])?(?:[.:]([a-zA-Z0-9_./:#=-]+))?\s*\}\}").unwrap()
+    Regex::new(r"\{\{\s*([a-zA-Z0-9_-]+)(?:\[(\d+)\])?(?:[.:]([a-zA-Z0-9_./:#=-]+))?\s*\}\}")
+        .unwrap()
 });
 
 static DEP_TEMPLATE_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -103,7 +103,10 @@ impl CodeBlock {
         } else {
             let sec = self.analyze_security();
             if sec.is_destructive {
-                Some(format!("Destructive action detected ({})! Confirm execution?", sec.reason))
+                Some(format!(
+                    "Destructive action detected ({})! Confirm execution?",
+                    sec.reason
+                ))
             } else if self.is_dangerous() {
                 Some("High blast-radius execution. Are you sure you want to proceed?".to_string())
             } else {
@@ -293,14 +296,20 @@ impl Runner {
     }
 
     /// Detects if cursor is inside or immediately adjacent to a fenced code block
-    pub fn find_code_block(buffer: &crate::editor::TextBuffer, cursor_line: usize) -> Option<CodeBlock> {
+    pub fn find_code_block(
+        buffer: &crate::editor::TextBuffer,
+        cursor_line: usize,
+    ) -> Option<CodeBlock> {
         Self::all_code_blocks(buffer)
             .into_iter()
             .find(|b| cursor_line >= b.start_fence_line && cursor_line <= b.end_fence_line)
     }
 
     /// Finds if an ```output block immediately follows a code block
-    pub fn find_following_output_block(buffer: &crate::editor::TextBuffer, end_fence_line: usize) -> Option<OutputBlockSpan> {
+    pub fn find_following_output_block(
+        buffer: &crate::editor::TextBuffer,
+        end_fence_line: usize,
+    ) -> Option<OutputBlockSpan> {
         let total_lines = buffer.line_count();
         let mut check_line = end_fence_line + 1;
 
@@ -461,7 +470,10 @@ impl Runner {
     }
 
     /// Finds a code block by identifier (custom name, block_X, or line position)
-    pub fn find_code_block_by_id(buffer: &crate::editor::TextBuffer, target_id: &str) -> Option<CodeBlock> {
+    pub fn find_code_block_by_id(
+        buffer: &crate::editor::TextBuffer,
+        target_id: &str,
+    ) -> Option<CodeBlock> {
         let blocks = Self::all_code_blocks(buffer);
         for (idx, b) in blocks.iter().enumerate() {
             let index_id = format!("block_{}", idx);
@@ -501,132 +513,136 @@ impl Runner {
             }
         });
 
-        VAR_INTERPOLATE_RE.replace_all(&code_after_sec, |caps: &regex::Captures| {
-            let key = &caps[1];
-            let index_opt: Option<usize> = caps.get(2).and_then(|m| m.as_str().parse().ok());
-            let field = caps.get(3).map(|m| m.as_str()).unwrap_or("");
+        VAR_INTERPOLATE_RE
+            .replace_all(&code_after_sec, |caps: &regex::Captures| {
+                let key = &caps[1];
+                let index_opt: Option<usize> = caps.get(2).and_then(|m| m.as_str().parse().ok());
+                let field = caps.get(3).map(|m| m.as_str()).unwrap_or("");
 
-            // 0. Secret interpolation fallback
-            if key.eq_ignore_ascii_case("secret") || key.eq_ignore_ascii_case("secrets") {
-                let mut vault = crate::vault::SecretVault::new();
-                if let Some(val) = vault.resolve(field) {
-                    return val;
-                }
-            }
-
-            // 1. Fleet output interpolation: {{web_servers[0].stdout}}, {{web_servers.failed}}, {{web_servers.success}}
-            let result = outputs.get(key).or_else(|| {
-                outputs
-                    .iter()
-                    .find(|(k, _)| k.eq_ignore_ascii_case(key))
-                    .map(|(_, v)| v)
-            });
-
-            if let Some(res) = result
-                && let Some(fleet) = crate::mesh::FleetOutput::parse(&res.stdout)
-            {
-                if let Some(idx) = index_opt {
-                    if let Some(host_out) = fleet.hosts.get(idx) {
-                        let out_field = if field.is_empty() { "stdout" } else { field };
-                        return match out_field.to_lowercase().as_str() {
-                            "stdout" => crate::ansi::strip_ansi_codes(&host_out.stdout)
-                                .trim_end_matches(&['\r', '\n'][..])
-                                .to_string(),
-                            "stderr" => crate::ansi::strip_ansi_codes(&host_out.stderr)
-                                .trim_end_matches(&['\r', '\n'][..])
-                                .to_string(),
-                            "exit_code" | "code" => host_out.exit_code.to_string(),
-                            "host" => host_out.host.clone(),
-                            _ => crate::ansi::strip_ansi_codes(&host_out.stdout)
-                                .trim_end_matches(&['\r', '\n'][..])
-                                .to_string(),
-                        };
-                    }
-                } else {
-                    match field.to_lowercase().as_str() {
-                        "failed" => return fleet.failed_hosts().join(", "),
-                        "success" => return fleet.is_success().to_string(),
-                        "count" | "total" => return fleet.hosts.len().to_string(),
-                        "hosts" => {
-                            let all_h: Vec<String> = fleet.hosts.iter().map(|h| h.host.clone()).collect();
-                            return all_h.join(", ");
-                        }
-                        _ => {}
+                // 0. Secret interpolation fallback
+                if key.eq_ignore_ascii_case("secret") || key.eq_ignore_ascii_case("secrets") {
+                    let mut vault = crate::vault::SecretVault::new();
+                    if let Some(val) = vault.resolve(field) {
+                        return val;
                     }
                 }
-            }
 
-            // 2. Parameter interpolation: {{params.CLUSTER}}, {{param.CLUSTER}}, {{param:CLUSTER}}
-            if (key.eq_ignore_ascii_case("params") || key.eq_ignore_ascii_case("param"))
-                && let Some(val) = params.get(field).or_else(|| {
-                    params
-                        .iter()
-                        .find(|(k, _)| k.eq_ignore_ascii_case(field))
-                        .map(|(_, v)| v)
-                })
-            {
-                return val.clone();
-            }
-
-            // Also check direct param match if {{CLUSTER}} without dot
-            if field.is_empty()
-                && index_opt.is_none()
-                && let Some(val) = params.get(key).or_else(|| {
-                    params
-                        .iter()
-                        .find(|(k, _)| k.eq_ignore_ascii_case(key))
-                        .map(|(_, v)| v)
-                })
-            {
-                return val.clone();
-            }
-
-            // 3. Table selection interpolation: {{table_name.selected.id}}, {{table_name.selected}}
-            if field.starts_with("selected") {
-                let subfield = field.strip_prefix("selected.").or_else(|| field.strip_prefix("selected"));
-                let table_opt = tables.get(key).or_else(|| {
-                    tables
+                // 1. Fleet output interpolation: {{web_servers[0].stdout}}, {{web_servers.failed}}, {{web_servers.success}}
+                let result = outputs.get(key).or_else(|| {
+                    outputs
                         .iter()
                         .find(|(k, _)| k.eq_ignore_ascii_case(key))
                         .map(|(_, v)| v)
                 });
 
-                if let Some(tbl) = table_opt {
-                    match subfield {
-                        Some("") | None => {
-                            if let Some(json) = tbl.get_selected_row_json() {
-                                return json;
-                            }
+                if let Some(res) = result
+                    && let Some(fleet) = crate::mesh::FleetOutput::parse(&res.stdout)
+                {
+                    if let Some(idx) = index_opt {
+                        if let Some(host_out) = fleet.hosts.get(idx) {
+                            let out_field = if field.is_empty() { "stdout" } else { field };
+                            return match out_field.to_lowercase().as_str() {
+                                "stdout" => crate::ansi::strip_ansi_codes(&host_out.stdout)
+                                    .trim_end_matches(&['\r', '\n'][..])
+                                    .to_string(),
+                                "stderr" => crate::ansi::strip_ansi_codes(&host_out.stderr)
+                                    .trim_end_matches(&['\r', '\n'][..])
+                                    .to_string(),
+                                "exit_code" | "code" => host_out.exit_code.to_string(),
+                                "host" => host_out.host.clone(),
+                                _ => crate::ansi::strip_ansi_codes(&host_out.stdout)
+                                    .trim_end_matches(&['\r', '\n'][..])
+                                    .to_string(),
+                            };
                         }
-                        Some(col_name) => {
-                            if let Some(cell) = tbl.get_selected_cell(col_name) {
-                                return cell.to_string();
+                    } else {
+                        match field.to_lowercase().as_str() {
+                            "failed" => return fleet.failed_hosts().join(", "),
+                            "success" => return fleet.is_success().to_string(),
+                            "count" | "total" => return fleet.hosts.len().to_string(),
+                            "hosts" => {
+                                let all_h: Vec<String> =
+                                    fleet.hosts.iter().map(|h| h.host.clone()).collect();
+                                return all_h.join(", ");
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                // 2. Parameter interpolation: {{params.CLUSTER}}, {{param.CLUSTER}}, {{param:CLUSTER}}
+                if (key.eq_ignore_ascii_case("params") || key.eq_ignore_ascii_case("param"))
+                    && let Some(val) = params.get(field).or_else(|| {
+                        params
+                            .iter()
+                            .find(|(k, _)| k.eq_ignore_ascii_case(field))
+                            .map(|(_, v)| v)
+                    })
+                {
+                    return val.clone();
+                }
+
+                // Also check direct param match if {{CLUSTER}} without dot
+                if field.is_empty()
+                    && index_opt.is_none()
+                    && let Some(val) = params.get(key).or_else(|| {
+                        params
+                            .iter()
+                            .find(|(k, _)| k.eq_ignore_ascii_case(key))
+                            .map(|(_, v)| v)
+                    })
+                {
+                    return val.clone();
+                }
+
+                // 3. Table selection interpolation: {{table_name.selected.id}}, {{table_name.selected}}
+                if field.starts_with("selected") {
+                    let subfield = field
+                        .strip_prefix("selected.")
+                        .or_else(|| field.strip_prefix("selected"));
+                    let table_opt = tables.get(key).or_else(|| {
+                        tables
+                            .iter()
+                            .find(|(k, _)| k.eq_ignore_ascii_case(key))
+                            .map(|(_, v)| v)
+                    });
+
+                    if let Some(tbl) = table_opt {
+                        match subfield {
+                            Some("") | None => {
+                                if let Some(json) = tbl.get_selected_row_json() {
+                                    return json;
+                                }
+                            }
+                            Some(col_name) => {
+                                if let Some(cell) = tbl.get_selected_cell(col_name) {
+                                    return cell.to_string();
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // 4. Execution outputs interpolation: {{block_0.stdout}}, {{get_pod.stdout}}, etc.
-            if let Some(res) = result {
-                let out_field = if field.is_empty() { "stdout" } else { field };
-                match out_field.to_lowercase().as_str() {
-                    "stdout" => crate::ansi::strip_ansi_codes(&res.stdout)
-                        .trim_end_matches(&['\r', '\n'][..])
-                        .to_string(),
-                    "stderr" => crate::ansi::strip_ansi_codes(&res.stderr)
-                        .trim_end_matches(&['\r', '\n'][..])
-                        .to_string(),
-                    "exit_code" | "code" => res.exit_code.to_string(),
-                    _ => crate::ansi::strip_ansi_codes(&res.stdout)
-                        .trim_end_matches(&['\r', '\n'][..])
-                        .to_string(),
+                // 4. Execution outputs interpolation: {{block_0.stdout}}, {{get_pod.stdout}}, etc.
+                if let Some(res) = result {
+                    let out_field = if field.is_empty() { "stdout" } else { field };
+                    match out_field.to_lowercase().as_str() {
+                        "stdout" => crate::ansi::strip_ansi_codes(&res.stdout)
+                            .trim_end_matches(&['\r', '\n'][..])
+                            .to_string(),
+                        "stderr" => crate::ansi::strip_ansi_codes(&res.stderr)
+                            .trim_end_matches(&['\r', '\n'][..])
+                            .to_string(),
+                        "exit_code" | "code" => res.exit_code.to_string(),
+                        _ => crate::ansi::strip_ansi_codes(&res.stdout)
+                            .trim_end_matches(&['\r', '\n'][..])
+                            .to_string(),
+                    }
+                } else {
+                    caps[0].to_string()
                 }
-            } else {
-                caps[0].to_string()
-            }
-        })
-        .to_string()
+            })
+            .to_string()
     }
 
     /// Interpolates with params
@@ -656,7 +672,13 @@ impl Runner {
         for (key, res) in outputs {
             let clean_key: String = key
                 .chars()
-                .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_uppercase() } else { '_' })
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() {
+                        c.to_ascii_uppercase()
+                    } else {
+                        '_'
+                    }
+                })
                 .collect();
             let clean_stdout = crate::ansi::strip_ansi_codes(&res.stdout);
             let clean_stderr = crate::ansi::strip_ansi_codes(&res.stderr);
@@ -672,17 +694,36 @@ impl Runner {
             // Also check if fleet output
             if let Some(fleet) = crate::mesh::FleetOutput::parse(&res.stdout) {
                 for (idx, h) in fleet.hosts.iter().enumerate() {
-                    let h_stdout = crate::ansi::strip_ansi_codes(&h.stdout).trim_end_matches(&['\r', '\n'][..]).to_string();
-                    let h_stderr = crate::ansi::strip_ansi_codes(&h.stderr).trim_end_matches(&['\r', '\n'][..]).to_string();
-                    envs.insert(format!("SKAT_{}_{}_STDOUT", clean_key, idx), h_stdout.clone());
+                    let h_stdout = crate::ansi::strip_ansi_codes(&h.stdout)
+                        .trim_end_matches(&['\r', '\n'][..])
+                        .to_string();
+                    let h_stderr = crate::ansi::strip_ansi_codes(&h.stderr)
+                        .trim_end_matches(&['\r', '\n'][..])
+                        .to_string();
+                    envs.insert(
+                        format!("SKAT_{}_{}_STDOUT", clean_key, idx),
+                        h_stdout.clone(),
+                    );
                     envs.insert(format!("SKAT_{}_{}_STDERR", clean_key, idx), h_stderr);
-                    envs.insert(format!("SKAT_{}_{}_EXIT_CODE", clean_key, idx), h.exit_code.to_string());
+                    envs.insert(
+                        format!("SKAT_{}_{}_EXIT_CODE", clean_key, idx),
+                        h.exit_code.to_string(),
+                    );
                     envs.insert(format!("SKAT_{}_{}_HOST", clean_key, idx), h.host.clone());
                     envs.insert(format!("SKAT_{}_{}", clean_key, idx), h_stdout);
                 }
-                envs.insert(format!("SKAT_{}_FAILED", clean_key), fleet.failed_hosts().join(","));
-                envs.insert(format!("SKAT_{}_SUCCESS", clean_key), fleet.is_success().to_string());
-                envs.insert(format!("SKAT_{}_COUNT", clean_key), fleet.hosts.len().to_string());
+                envs.insert(
+                    format!("SKAT_{}_FAILED", clean_key),
+                    fleet.failed_hosts().join(","),
+                );
+                envs.insert(
+                    format!("SKAT_{}_SUCCESS", clean_key),
+                    fleet.is_success().to_string(),
+                );
+                envs.insert(
+                    format!("SKAT_{}_COUNT", clean_key),
+                    fleet.hosts.len().to_string(),
+                );
             }
         }
 
@@ -690,17 +731,30 @@ impl Runner {
         for (name, val) in params {
             let clean_name: String = name
                 .chars()
-                .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_uppercase() } else { '_' })
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() {
+                        c.to_ascii_uppercase()
+                    } else {
+                        '_'
+                    }
+                })
                 .collect();
             envs.insert(format!("SKAT_PARAM_{}", clean_name), val.clone());
-            envs.entry(format!("SKAT_{}", clean_name)).or_insert_with(|| val.clone());
+            envs.entry(format!("SKAT_{}", clean_name))
+                .or_insert_with(|| val.clone());
         }
 
         // 3. Table selections ($SKAT_GET_PODS_SELECTED_NAME, $SKAT_GET_PODS_SELECTED, etc.)
         for (name, tbl) in tables {
             let clean_tbl: String = name
                 .chars()
-                .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_uppercase() } else { '_' })
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() {
+                        c.to_ascii_uppercase()
+                    } else {
+                        '_'
+                    }
+                })
                 .collect();
 
             if let Some(row) = tbl.rows.get(tbl.selected_row) {
@@ -708,9 +762,18 @@ impl Runner {
                     if let Some(cell_val) = row.get(col_idx) {
                         let clean_col: String = h
                             .chars()
-                            .map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_uppercase() } else { '_' })
+                            .map(|c| {
+                                if c.is_ascii_alphanumeric() {
+                                    c.to_ascii_uppercase()
+                                } else {
+                                    '_'
+                                }
+                            })
                             .collect();
-                        envs.insert(format!("SKAT_{}_SELECTED_{}", clean_tbl, clean_col), cell_val.clone());
+                        envs.insert(
+                            format!("SKAT_{}_SELECTED_{}", clean_tbl, clean_col),
+                            cell_val.clone(),
+                        );
                     }
                 }
             }
@@ -723,7 +786,9 @@ impl Runner {
     }
 
     /// Auto-injects environment variables for previous outputs ($SKAT_BLOCK_0_STDOUT, $SKAT_GET_POD_STDOUT, etc.)
-    pub fn build_environment_variables(outputs: &HashMap<String, ExecutionResult>) -> HashMap<String, String> {
+    pub fn build_environment_variables(
+        outputs: &HashMap<String, ExecutionResult>,
+    ) -> HashMap<String, String> {
         Self::build_environment_variables_with_context(outputs, &HashMap::new(), &HashMap::new())
     }
 
@@ -736,7 +801,9 @@ impl Runner {
     }
 
     /// Collects existing output blocks from buffer into an outputs map
-    pub fn collect_existing_outputs(buffer: &crate::editor::TextBuffer) -> HashMap<String, ExecutionResult> {
+    pub fn collect_existing_outputs(
+        buffer: &crate::editor::TextBuffer,
+    ) -> HashMap<String, ExecutionResult> {
         let mut outputs = HashMap::new();
         let blocks = Self::all_code_blocks(buffer);
         for (idx, b) in blocks.into_iter().enumerate() {
@@ -784,7 +851,9 @@ impl Runner {
     }
 
     /// Resolves dependency block indices for each code block
-    pub fn resolve_block_dependencies(blocks: &[CodeBlock]) -> Result<Vec<(usize, Vec<usize>)>, String> {
+    pub fn resolve_block_dependencies(
+        blocks: &[CodeBlock],
+    ) -> Result<Vec<(usize, Vec<usize>)>, String> {
         let mut result = Vec::new();
 
         for (i, block) in blocks.iter().enumerate() {
@@ -793,7 +862,10 @@ impl Runner {
 
             for dep in deps {
                 let found_idx = blocks.iter().enumerate().position(|(idx, b)| {
-                    b.name.as_deref().map(|n| n.eq_ignore_ascii_case(&dep)).unwrap_or(false)
+                    b.name
+                        .as_deref()
+                        .map(|n| n.eq_ignore_ascii_case(&dep))
+                        .unwrap_or(false)
                         || b.id.eq_ignore_ascii_case(&dep)
                         || format!("block_{}", idx).eq_ignore_ascii_case(&dep)
                 });
@@ -898,7 +970,8 @@ impl Runner {
         let mut vault = crate::vault::SecretVault::with_workspace(working_dir);
         if let Some(buf) = buffer {
             for param in crate::form::FormParser::find_all(buf) {
-                if param.param_type == crate::form::FormParamType::Secret && !param.value.is_empty() {
+                if param.param_type == crate::form::FormParamType::Secret && !param.value.is_empty()
+                {
                     vault.insert(param.name, param.value);
                 }
             }
@@ -908,7 +981,8 @@ impl Runner {
         }
 
         // Interpolate secrets into block code
-        let interpolated_code = vault.interpolate_secrets_with_fallback(&block.code, Some(env_vars));
+        let interpolated_code =
+            vault.interpolate_secrets_with_fallback(&block.code, Some(env_vars));
         let mut block_to_run = block.clone();
         block_to_run.code = interpolated_code;
         if let Some(t) = &block_to_run.target {
@@ -1123,7 +1197,8 @@ impl Runner {
                             }
                             Err(e) => {
                                 let valid_idx = e.valid_up_to();
-                                let valid_text = String::from_utf8_lossy(&to_decode[..valid_idx]).to_string();
+                                let valid_text =
+                                    String::from_utf8_lossy(&to_decode[..valid_idx]).to_string();
                                 utf8_carry.extend_from_slice(&to_decode[valid_idx..]);
                                 if !valid_text.is_empty() {
                                     masked_on_chunk(valid_text);
@@ -1170,7 +1245,14 @@ impl Runner {
             }
         }
 
-        Self::execute_streaming_fallback(&block_to_run, working_dir, &effective_envs, masked_on_chunk, masked_on_end).await
+        Self::execute_streaming_fallback(
+            &block_to_run,
+            working_dir,
+            &effective_envs,
+            masked_on_chunk,
+            masked_on_end,
+        )
+        .await
     }
 
     async fn execute_streaming_fallback<FChunk, FEnd>(
@@ -1225,7 +1307,9 @@ impl Runner {
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
 
-        let mut child = cmd.spawn().with_context(|| format!("Failed to spawn command for language {}", lang))?;
+        let mut child = cmd
+            .spawn()
+            .with_context(|| format!("Failed to spawn command for language {}", lang))?;
         let mut stdin = child.stdin.take();
         let mut stdout = child.stdout.take();
         let mut stderr = child.stderr.take();
@@ -1390,9 +1474,12 @@ impl Runner {
             move |result| {
                 let _ = res_tx.send(result);
             },
-        ).await?;
+        )
+        .await?;
 
-        res_rx.await.context("Execution task dropped without result")
+        res_rx
+            .await
+            .context("Execution task dropped without result")
     }
 
     /// Executes the code block asynchronously with a timeout
@@ -1418,17 +1505,23 @@ impl Runner {
 
         for (i, block) in blocks.iter().enumerate() {
             // Interpolate previous outputs, parameters, table selections, and targets
-            let interpolated_code = Self::interpolate_variables_with_context(&block.code, &outputs, &params, &tables);
+            let interpolated_code =
+                Self::interpolate_variables_with_context(&block.code, &outputs, &params, &tables);
             let mut block_to_run = block.clone();
             block_to_run.code = interpolated_code;
             if let Some(t) = &block.target {
-                block_to_run.target = Some(Self::interpolate_variables_with_context(t, &outputs, &params, &tables));
+                block_to_run.target = Some(Self::interpolate_variables_with_context(
+                    t, &outputs, &params, &tables,
+                ));
             }
             if let Some(p) = &block.proxy {
-                block_to_run.proxy = Some(Self::interpolate_variables_with_context(p, &outputs, &params, &tables));
+                block_to_run.proxy = Some(Self::interpolate_variables_with_context(
+                    p, &outputs, &params, &tables,
+                ));
             }
 
-            let env_vars = Self::build_environment_variables_with_context(&outputs, &params, &tables);
+            let env_vars =
+                Self::build_environment_variables_with_context(&outputs, &params, &tables);
 
             on_step_start(i, &block_to_run);
 
@@ -1673,7 +1766,10 @@ impl Runner {
     }
 
     /// Toggles the collapsed state of an output block at the cursor
-    pub fn toggle_output_collapse(buffer: &mut crate::editor::TextBuffer, cursor_line: usize) -> bool {
+    pub fn toggle_output_collapse(
+        buffer: &mut crate::editor::TextBuffer,
+        cursor_line: usize,
+    ) -> bool {
         let total_lines = buffer.line_count();
         if total_lines == 0 {
             return false;
@@ -1726,7 +1822,10 @@ impl Runner {
     }
 
     /// Finds the output block enclosing the given line, if any
-    pub fn find_enclosing_output_block(buffer: &crate::editor::TextBuffer, cursor_line: usize) -> Option<OutputBlockSpan> {
+    pub fn find_enclosing_output_block(
+        buffer: &crate::editor::TextBuffer,
+        cursor_line: usize,
+    ) -> Option<OutputBlockSpan> {
         let total_lines = buffer.line_count();
         if total_lines == 0 {
             return None;
@@ -1799,7 +1898,12 @@ impl Runner {
         }
     }
 
-    fn replace_lines(buffer: &mut crate::editor::TextBuffer, from_line: usize, to_line: usize, new_text: &str) {
+    fn replace_lines(
+        buffer: &mut crate::editor::TextBuffer,
+        from_line: usize,
+        to_line: usize,
+        new_text: &str,
+    ) {
         let total_lines = buffer.line_count();
         if from_line >= total_lines {
             return;

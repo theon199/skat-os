@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Community Discussions & Questions
+    url: https://github.com/theon199/skat-os/discussions
+    about: Ask questions, share your runbooks, and discuss workflows with the community.
+  - name: Security Vulnerability Reporting
+    url: https://github.com/theon199/skat-os/security/advisories
+    about: Privately report sensitive security issues according to our SECURITY.md policy.

@@ -4,15 +4,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock, LazyLock};
+use std::sync::{Arc, LazyLock, Mutex, OnceLock};
 use std::time::Duration;
 
 use crate::editor::TextBuffer;
 use crate::runner::{ExecutionResult, StreamingHandle};
 
-static FLEET_HEADER_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^===\s*\[([^\]]+)\]\s*===$").unwrap()
-});
+static FLEET_HEADER_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^===\s*\[([^\]]+)\]\s*===$").unwrap());
 
 /// Global default SSH session pool for persistent connections across the application
 pub fn global_ssh_pool() -> &'static SshSessionPool {
@@ -63,7 +62,10 @@ impl SshEndpoint {
 
         // Check for user / password before '@'
         let (auth_part, host_part) = if let Some(at_idx) = without_scheme.find('@') {
-            (Some(&without_scheme[..at_idx]), &without_scheme[at_idx + 1..])
+            (
+                Some(&without_scheme[..at_idx]),
+                &without_scheme[at_idx + 1..],
+            )
         } else {
             (None, without_scheme)
         };
@@ -198,7 +200,10 @@ impl HostRegistry {
         groups
     }
 
-    fn extract_groups_from_yaml_value(value: &serde_yaml::Value, groups: &mut HashMap<String, Vec<String>>) {
+    fn extract_groups_from_yaml_value(
+        value: &serde_yaml::Value,
+        groups: &mut HashMap<String, Vec<String>>,
+    ) {
         if let Some(mapping) = value.as_mapping() {
             // Check if there is a top-level "hosts" or "groups" key
             for (k, v) in mapping {
@@ -279,7 +284,10 @@ impl HostRegistry {
                 return Ok(hosts.clone());
             }
 
-            anyhow::bail!("Unknown host group '@{}' (not defined in frontmatter or hosts.yaml)", group_name);
+            anyhow::bail!(
+                "Unknown host group '@{}' (not defined in frontmatter or hosts.yaml)",
+                group_name
+            );
         }
 
         // Direct host target
@@ -471,7 +479,8 @@ pub struct PoolKey {
     pub proxy: Option<String>,
 }
 
-pub type MockHandlerFn = Arc<dyn Fn(&str, &HashMap<String, String>) -> ExecutionResult + Send + Sync>;
+pub type MockHandlerFn =
+    Arc<dyn Fn(&str, &HashMap<String, String>) -> ExecutionResult + Send + Sync>;
 
 /// Connection pool managing authenticated persistent SSH sessions and mock test handlers
 #[derive(Clone)]
@@ -541,7 +550,11 @@ impl SshSessionPool {
     }
 
     /// Returns an existing authenticated session or establishes and authenticates a new one
-    pub fn get_or_connect(&self, endpoint: &SshEndpoint, proxy: Option<&SshEndpoint>) -> Result<ssh2::Session> {
+    pub fn get_or_connect(
+        &self,
+        endpoint: &SshEndpoint,
+        proxy: Option<&SshEndpoint>,
+    ) -> Result<ssh2::Session> {
         let key = PoolKey {
             user: endpoint.user.clone(),
             host: endpoint.host.clone(),
@@ -562,12 +575,17 @@ impl SshSessionPool {
         // 2. Establish new connection
         let session = if let Some(proxy_ep) = proxy {
             // Tunnel through bastion jump host
-            let bastion_session = self.get_or_connect(proxy_ep, None)
-                .context(format!("Failed to connect to bastion jump host {}", proxy_ep.host))?;
+            let bastion_session = self.get_or_connect(proxy_ep, None).context(format!(
+                "Failed to connect to bastion jump host {}",
+                proxy_ep.host
+            ))?;
 
             let channel = bastion_session
                 .channel_direct_tcpip(&endpoint.host, endpoint.port, None)
-                .context(format!("Failed to establish TCP tunnel through bastion to {}:{}", endpoint.host, endpoint.port))?;
+                .context(format!(
+                    "Failed to establish TCP tunnel through bastion to {}:{}",
+                    endpoint.host, endpoint.port
+                ))?;
 
             use std::os::unix::net::UnixStream;
             let (sock_local, sock_remote) = UnixStream::pair()
@@ -585,7 +603,9 @@ impl SshSessionPool {
                     match sock_r.read(&mut buf) {
                         Ok(0) => break,
                         Ok(n) => {
-                            if channel_writer.write_all(&buf[..n]).is_err() || channel_writer.flush().is_err() {
+                            if channel_writer.write_all(&buf[..n]).is_err()
+                                || channel_writer.flush().is_err()
+                            {
                                 break;
                             }
                         }
@@ -610,11 +630,13 @@ impl SshSessionPool {
                 }
             });
 
-            let mut target_session = ssh2::Session::new()
-                .context("Failed to initialize target SSH session")?;
+            let mut target_session =
+                ssh2::Session::new().context("Failed to initialize target SSH session")?;
             target_session.set_tcp_stream(sock_remote);
-            target_session.handshake()
-                .context(format!("SSH handshake through bastion failed for {}:{}", endpoint.host, endpoint.port))?;
+            target_session.handshake().context(format!(
+                "SSH handshake through bastion failed for {}:{}",
+                endpoint.host, endpoint.port
+            ))?;
 
             Self::authenticate_session(&mut target_session, endpoint)?;
             target_session
@@ -626,10 +648,10 @@ impl SshSessionPool {
             tcp.set_read_timeout(Some(Duration::from_secs(30)))?;
             tcp.set_write_timeout(Some(Duration::from_secs(30)))?;
 
-            let mut session = ssh2::Session::new()
-                .context("Failed to initialize SSH session")?;
+            let mut session = ssh2::Session::new().context("Failed to initialize SSH session")?;
             session.set_tcp_stream(tcp);
-            session.handshake()
+            session
+                .handshake()
                 .context(format!("SSH handshake failed for {}", addr))?;
 
             Self::authenticate_session(&mut session, endpoint)?;
@@ -647,9 +669,10 @@ impl SshSessionPool {
 
     /// Authenticates session using ssh-agent, standard keys, password, or none
     fn authenticate_session(session: &mut ssh2::Session, endpoint: &SshEndpoint) -> Result<()> {
-        let username = endpoint.user.clone().unwrap_or_else(|| {
-            std::env::var("USER").unwrap_or_else(|_| "root".to_string())
-        });
+        let username = endpoint
+            .user
+            .clone()
+            .unwrap_or_else(|| std::env::var("USER").unwrap_or_else(|_| "root".to_string()));
 
         // 1. Password if provided in endpoint URI
         if let Some(pass) = &endpoint.password
@@ -660,7 +683,8 @@ impl SshSessionPool {
         }
 
         // 2. Password from SKAT_SSH_PASSWORD or SSH_PASSWORD environment variables
-        if let Ok(pass) = std::env::var("SKAT_SSH_PASSWORD").or_else(|_| std::env::var("SSH_PASSWORD"))
+        if let Ok(pass) =
+            std::env::var("SKAT_SSH_PASSWORD").or_else(|_| std::env::var("SSH_PASSWORD"))
             && session.userauth_password(&username, &pass).is_ok()
             && session.authenticated()
         {
@@ -687,9 +711,17 @@ impl SshSessionPool {
             for name in &key_names {
                 let priv_path = PathBuf::from(&home).join(".ssh").join(name);
                 if priv_path.exists() {
-                    let pub_path = PathBuf::from(&home).join(".ssh").join(format!("{}.pub", name));
-                    let pub_arg = if pub_path.exists() { Some(pub_path.as_path()) } else { None };
-                    if session.userauth_pubkey_file(&username, pub_arg, &priv_path, None).is_ok()
+                    let pub_path = PathBuf::from(&home)
+                        .join(".ssh")
+                        .join(format!("{}.pub", name));
+                    let pub_arg = if pub_path.exists() {
+                        Some(pub_path.as_path())
+                    } else {
+                        None
+                    };
+                    if session
+                        .userauth_pubkey_file(&username, pub_arg, &priv_path, None)
+                        .is_ok()
                         && session.authenticated()
                     {
                         return Ok(());
@@ -777,9 +809,11 @@ where
     let session = pool.get_or_connect(&target, proxy.as_ref())?;
 
     // Open multiplexed channel and allocate PTY
-    let mut channel = session.channel_session()
+    let mut channel = session
+        .channel_session()
         .context("Failed to open SSH channel session")?;
-    channel.request_pty("xterm-256color", None, Some((80, 24, 0, 0)))
+    channel
+        .request_pty("xterm-256color", None, Some((80, 24, 0, 0)))
         .context("Failed to request PTY on remote SSH channel")?;
 
     // Build shell command with environment variables
@@ -812,8 +846,10 @@ where
         }
     };
 
-    channel.exec(&remote_cmd)
-        .context(format!("Failed to exec command on remote host {}", target.host))?;
+    channel.exec(&remote_cmd).context(format!(
+        "Failed to exec command on remote host {}",
+        target.host
+    ))?;
 
     let (stdin_tx, mut stdin_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
     let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel::<()>();
@@ -976,7 +1012,8 @@ where
                 let env_c = env_vars.clone();
                 let chunk_tx_c = chunk_tx.clone();
 
-                let (sub_stdin_tx, mut sub_stdin_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+                let (sub_stdin_tx, mut sub_stdin_rx) =
+                    tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
                 let (sub_cancel_tx, sub_cancel_rx) = tokio::sync::oneshot::channel::<()>();
                 stdin_sub_txs.push(sub_stdin_tx);
                 cancel_sub_txs.push(sub_cancel_tx);
@@ -1245,7 +1282,10 @@ where
             .enumerate()
             .map(|(idx, opt)| {
                 opt.unwrap_or_else(|| HostOutput {
-                    host: hosts.get(idx).cloned().unwrap_or_else(|| format!("host_{}", idx)),
+                    host: hosts
+                        .get(idx)
+                        .cloned()
+                        .unwrap_or_else(|| format!("host_{}", idx)),
                     stdout: String::new(),
                     stderr: "Execution aborted".to_string(),
                     exit_code: -1,
@@ -1386,8 +1426,14 @@ db_servers:
         let groups = HostRegistry::parse_frontmatter(&buf);
 
         assert_eq!(groups.len(), 2);
-        assert_eq!(groups.get("web_servers"), Some(&vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()]));
-        assert_eq!(groups.get("db_servers"), Some(&vec!["10.0.1.10".to_string(), "10.0.1.11".to_string()]));
+        assert_eq!(
+            groups.get("web_servers"),
+            Some(&vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()])
+        );
+        assert_eq!(
+            groups.get("db_servers"),
+            Some(&vec!["10.0.1.10".to_string(), "10.0.1.11".to_string()])
+        );
     }
 
     #[test]
@@ -1404,11 +1450,14 @@ hosts:
         std::fs::write(&hosts_file, content).unwrap();
 
         let groups = HostRegistry::parse_hosts_file(temp_dir.path());
-        assert_eq!(groups.get("cluster_nodes"), Some(&vec![
-            "192.168.1.1".to_string(),
-            "192.168.1.2".to_string(),
-            "192.168.1.3".to_string(),
-        ]));
+        assert_eq!(
+            groups.get("cluster_nodes"),
+            Some(&vec![
+                "192.168.1.1".to_string(),
+                "192.168.1.2".to_string(),
+                "192.168.1.3".to_string(),
+            ])
+        );
     }
 
     #[test]
@@ -1421,11 +1470,14 @@ web_servers: [10.0.0.1, 10.0.0.2]
         let temp_dir = tempfile::tempdir().unwrap();
 
         // 1. Resolve host group
-        let resolved = HostRegistry::resolve_target("@web_servers", Some(&buf), temp_dir.path()).unwrap();
+        let resolved =
+            HostRegistry::resolve_target("@web_servers", Some(&buf), temp_dir.path()).unwrap();
         assert_eq!(resolved, vec!["10.0.0.1", "10.0.0.2"]);
 
         // 2. Resolve direct host
-        let direct = HostRegistry::resolve_target("ssh://ubuntu@10.0.0.5", Some(&buf), temp_dir.path()).unwrap();
+        let direct =
+            HostRegistry::resolve_target("ssh://ubuntu@10.0.0.5", Some(&buf), temp_dir.path())
+                .unwrap();
         assert_eq!(direct, vec!["ssh://ubuntu@10.0.0.5"]);
 
         // 3. Unknown host group
@@ -1451,7 +1503,10 @@ web_servers: [10.0.0.1, 10.0.0.2]
         ];
 
         let fleet = FleetOutput::new("web_servers".to_string(), hosts, true);
-        assert_eq!(fleet.status_badges(), "[10.0.0.1: ✓ exit 0] [10.0.0.2: ✖ exit 1]");
+        assert_eq!(
+            fleet.status_badges(),
+            "[10.0.0.1: ✓ exit 0] [10.0.0.2: ✖ exit 1]"
+        );
         assert_eq!(fleet.failed_hosts(), vec!["10.0.0.2"]);
         assert!(!fleet.is_success());
         assert_eq!(fleet.overall_exit_code(), 1);

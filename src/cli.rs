@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use std::path::PathBuf;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -72,7 +72,9 @@ pub fn parse_cli_args(args: &[String]) -> Result<CliCommand> {
                 match args[i].as_str() {
                     "--port" | "-p" => {
                         if i + 1 < args.len() {
-                            port = args[i + 1].parse().map_err(|_| anyhow!("Invalid port number"))?;
+                            port = args[i + 1]
+                                .parse()
+                                .map_err(|_| anyhow!("Invalid port number"))?;
                             i += 2;
                         } else {
                             return Err(anyhow!("Missing argument for --port"));

@@ -1,7 +1,7 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use crate::app::{App, CollabMode, FocusPane};
 use crate::ui::theme::Theme;
@@ -113,7 +113,10 @@ impl StatusBarView {
             .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
             .split(area);
 
-        frame.render_widget(Paragraph::new(Line::from(left_spans)).style(Theme::STATUS_BAR), chunks[0]);
+        frame.render_widget(
+            Paragraph::new(Line::from(left_spans)).style(Theme::STATUS_BAR),
+            chunks[0],
+        );
         frame.render_widget(
             Paragraph::new(Line::from(right_spans))
                 .style(Theme::STATUS_BAR)

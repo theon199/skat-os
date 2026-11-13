@@ -5,9 +5,7 @@ static LABEL_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^\s*([a-zA-Z0-9_-]+)\s*[:=]\s*(-?\d+(?:\.\d+)?)\s*(?:%|[a-zA-Z/]+)?\s*$").unwrap()
 });
 
-static NUM_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\b\d+(?:\.\d+)?\b").unwrap()
-});
+static NUM_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b\d+(?:\.\d+)?\b").unwrap());
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChartData {
@@ -187,7 +185,10 @@ mod tests {
         let json_objs = r#"[{"label": "CPU", "value": 55}, {"label": "MEM", "value": 75}]"#;
         let chart2 = ChartData::parse(json_objs);
         assert_eq!(chart2.values, vec![55, 75]);
-        assert_eq!(chart2.bars, vec![("CPU".to_string(), 55), ("MEM".to_string(), 75)]);
+        assert_eq!(
+            chart2.bars,
+            vec![("CPU".to_string(), 55), ("MEM".to_string(), 75)]
+        );
         assert_eq!(chart2.max_value, 75);
     }
 

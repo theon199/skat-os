@@ -1,7 +1,7 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
-use ratatui::Frame;
 
 use crate::ui::theme::Theme;
 
@@ -21,7 +21,10 @@ impl HelpView {
         let block = Block::default()
             .borders(Borders::ALL)
             .border_style(Theme::TITLE_ACTIVE)
-            .title(Span::styled(" skat-os Help & Cheatsheet ", Theme::TITLE_ACTIVE));
+            .title(Span::styled(
+                " skat-os Help & Cheatsheet ",
+                Theme::TITLE_ACTIVE,
+            ));
 
         let inner_area = block.inner(modal_area);
         frame.render_widget(block, modal_area);
@@ -49,7 +52,10 @@ impl HelpView {
                 Span::raw("Quit skat-os"),
             ]),
             Line::from(""),
-            Line::from(Span::styled("Document Editing & Playbooks", Theme::TITLE_ACTIVE)),
+            Line::from(Span::styled(
+                "Document Editing & Playbooks",
+                Theme::TITLE_ACTIVE,
+            )),
             Line::from(vec![
                 Span::styled("  Standard typing", Theme::MD_H2),
                 Span::raw("Intuitive modeless editing (VS Code / Nano style)"),
@@ -71,7 +77,10 @@ impl HelpView {
                 Span::raw("Redo last edit"),
             ]),
             Line::from(""),
-            Line::from(Span::styled("Playbook Execution & Code Blocks", Theme::TITLE_ACTIVE)),
+            Line::from(Span::styled(
+                "Playbook Execution & Code Blocks",
+                Theme::TITLE_ACTIVE,
+            )),
             Line::from(vec![
                 Span::styled("  Ctrl+R        ", Theme::MD_H2),
                 Span::raw("Execute code block under cursor (interpolates previous outputs)"),
@@ -93,7 +102,10 @@ impl HelpView {
                 Span::raw("Chain outputs: interpolate prior block stdout or $SKAT_<NAME>_STDOUT"),
             ]),
             Line::from(""),
-            Line::from(Span::styled("Wiki Links & Knowledge Graph", Theme::TITLE_ACTIVE)),
+            Line::from(Span::styled(
+                "Wiki Links & Knowledge Graph",
+                Theme::TITLE_ACTIVE,
+            )),
             Line::from(vec![
                 Span::styled("  [[doc-name]]  ", Theme::MD_WIKILINK),
                 Span::raw("Links to another document; backlinks appear in the sidebar"),

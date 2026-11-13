@@ -8,16 +8,11 @@ impl Theme {
     #[allow(dead_code)]
     pub const BORDER_INACTIVE: Color = Color::DarkGray;
 
-    pub const TITLE_ACTIVE: Style = Style::new()
-        .fg(Color::Cyan)
-        .add_modifier(Modifier::BOLD);
+    pub const TITLE_ACTIVE: Style = Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD);
 
-    pub const TITLE_INACTIVE: Style = Style::new()
-        .fg(Color::DarkGray);
+    pub const TITLE_INACTIVE: Style = Style::new().fg(Color::DarkGray);
 
-    pub const STATUS_BAR: Style = Style::new()
-        .bg(Color::Rgb(25, 30, 45))
-        .fg(Color::White);
+    pub const STATUS_BAR: Style = Style::new().bg(Color::Rgb(25, 30, 45)).fg(Color::White);
 
     pub const STATUS_BADGE_NORMAL: Style = Style::new()
         .bg(Color::Cyan)
@@ -34,33 +29,25 @@ impl Theme {
         .fg(Color::White)
         .add_modifier(Modifier::BOLD);
 
-    pub const SIDEBAR_ITEM: Style = Style::new()
-        .fg(Color::Gray);
+    pub const SIDEBAR_ITEM: Style = Style::new().fg(Color::Gray);
 
     pub const SIDEBAR_ITEM_SELECTED: Style = Style::new()
         .fg(Color::Cyan)
         .bg(Color::Rgb(40, 45, 60))
         .add_modifier(Modifier::BOLD);
 
-    pub const SIDEBAR_BACKLINK: Style = Style::new()
-        .fg(Color::Magenta);
+    pub const SIDEBAR_BACKLINK: Style = Style::new().fg(Color::Magenta);
 
     // Markdown styles
-    pub const MD_H1: Style = Style::new()
-        .fg(Color::Cyan)
-        .add_modifier(Modifier::BOLD);
+    pub const MD_H1: Style = Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD);
 
     pub const MD_H2: Style = Style::new()
         .fg(Color::LightCyan)
         .add_modifier(Modifier::BOLD);
 
-    pub const MD_H3: Style = Style::new()
-        .fg(Color::Yellow)
-        .add_modifier(Modifier::BOLD);
+    pub const MD_H3: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 
-    pub const MD_CODE_FENCE: Style = Style::new()
-        .fg(Color::Green)
-        .add_modifier(Modifier::BOLD);
+    pub const MD_CODE_FENCE: Style = Style::new().fg(Color::Green).add_modifier(Modifier::BOLD);
 
     pub const MD_CODE_LINE: Style = Style::new()
         .fg(Color::LightGreen)
@@ -70,24 +57,19 @@ impl Theme {
         .fg(Color::LightBlue)
         .add_modifier(Modifier::BOLD);
 
-    pub const MD_OUTPUT_LINE: Style = Style::new()
-        .fg(Color::White)
-        .bg(Color::Rgb(20, 25, 35));
+    pub const MD_OUTPUT_LINE: Style = Style::new().fg(Color::White).bg(Color::Rgb(20, 25, 35));
 
     pub const MD_WIKILINK: Style = Style::new()
         .fg(Color::LightMagenta)
         .add_modifier(Modifier::UNDERLINED);
 
-    pub const MD_LIST_BULLET: Style = Style::new()
-        .fg(Color::Yellow);
+    pub const MD_LIST_BULLET: Style = Style::new().fg(Color::Yellow);
 
     pub const MD_BLOCKQUOTE: Style = Style::new()
         .fg(Color::DarkGray)
         .add_modifier(Modifier::ITALIC);
 
-    pub const PALETTE_INPUT: Style = Style::new()
-        .fg(Color::White)
-        .bg(Color::Rgb(30, 35, 50));
+    pub const PALETTE_INPUT: Style = Style::new().fg(Color::White).bg(Color::Rgb(30, 35, 50));
 
     pub const PALETTE_SELECTED: Style = Style::new()
         .fg(Color::Black)
@@ -123,9 +105,8 @@ impl Theme {
         .fg(Color::LightGreen)
         .add_modifier(Modifier::BOLD);
 
-    pub const MD_TASK_UNCHECKED: Style = Style::new()
-        .fg(Color::Yellow)
-        .add_modifier(Modifier::BOLD);
+    pub const MD_TASK_UNCHECKED: Style =
+        Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 
     pub const MD_TASK_COMPLETED_TEXT: Style = Style::new()
         .fg(Color::DarkGray)
@@ -158,17 +139,11 @@ impl Theme {
         .add_modifier(Modifier::BOLD);
 
     // Table styles
-    pub const TABLE_HEADER: Style = Style::new()
-        .fg(Color::Cyan)
-        .add_modifier(Modifier::BOLD);
+    pub const TABLE_HEADER: Style = Style::new().fg(Color::Cyan).add_modifier(Modifier::BOLD);
 
-    pub const TABLE_ROW_EVEN: Style = Style::new()
-        .fg(Color::White)
-        .bg(Color::Rgb(25, 30, 40));
+    pub const TABLE_ROW_EVEN: Style = Style::new().fg(Color::White).bg(Color::Rgb(25, 30, 40));
 
-    pub const TABLE_ROW_ODD: Style = Style::new()
-        .fg(Color::Gray)
-        .bg(Color::Rgb(18, 22, 30));
+    pub const TABLE_ROW_ODD: Style = Style::new().fg(Color::Gray).bg(Color::Rgb(18, 22, 30));
 
     pub const TABLE_ROW_SELECTED: Style = Style::new()
         .fg(Color::Black)
@@ -176,11 +151,9 @@ impl Theme {
         .add_modifier(Modifier::BOLD);
 
     // Chart styles
-    pub const CHART_SPARKLINE: Style = Style::new()
-        .fg(Color::Cyan);
+    pub const CHART_SPARKLINE: Style = Style::new().fg(Color::Cyan);
 
-    pub const CHART_BAR: Style = Style::new()
-        .fg(Color::Green);
+    pub const CHART_BAR: Style = Style::new().fg(Color::Green);
 
     pub const CHART_BAR_VALUE: Style = Style::new()
         .fg(Color::Black)
@@ -193,9 +166,7 @@ impl Theme {
         .bg(Color::Cyan)
         .add_modifier(Modifier::BOLD);
 
-    pub const FLEET_TAB_INACTIVE: Style = Style::new()
-        .fg(Color::Gray)
-        .bg(Color::Rgb(25, 30, 45));
+    pub const FLEET_TAB_INACTIVE: Style = Style::new().fg(Color::Gray).bg(Color::Rgb(25, 30, 45));
 
     pub const FLEET_HOST_OK: Style = Style::new()
         .fg(Color::LightGreen)
@@ -226,11 +197,9 @@ impl Theme {
         .bg(Color::Yellow)
         .add_modifier(Modifier::BOLD);
 
-    pub const CONFIRM_MODAL_TITLE_DANGER: Style = Style::new()
-        .fg(Color::Red)
-        .add_modifier(Modifier::BOLD);
+    pub const CONFIRM_MODAL_TITLE_DANGER: Style =
+        Style::new().fg(Color::Red).add_modifier(Modifier::BOLD);
 
-    pub const CONFIRM_MODAL_TITLE_WARN: Style = Style::new()
-        .fg(Color::Yellow)
-        .add_modifier(Modifier::BOLD);
+    pub const CONFIRM_MODAL_TITLE_WARN: Style =
+        Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
 }

@@ -1,0 +1,89 @@
+name: Bug Report
+description: File a bug report to help us improve skat-os
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a problem in **skat-os**!
+        Please search [existing issues](https://github.com/theon199/skat-os/issues) before opening a new one to verify it has not been reported.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe what unexpected behavior you encountered.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Exact steps to reproduce the issue (including runbook markdown snippets or command line invocations).
+      placeholder: |
+        1. Open skat-os with document '...'
+        2. Focus code block '...'
+        3. Press Ctrl+Enter / Space
+        4. See error or crash
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: Clear description of expected behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior & Logs
+      description: Terminal output, error traces, or crash logs.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: skat-os Version
+      description: Output of `skat-os --version` (or commit hash if building from source).
+      placeholder: "skat-os 0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: What operating system are you running skat-os on?
+      options:
+        - "Linux (x86_64)"
+        - "Linux (aarch64 / ARM64)"
+        - "macOS (Apple Silicon - M1/M2/M3/M4)"
+        - "macOS (Intel - x86_64)"
+        - "Windows 10 / 11 (x86_64)"
+        - "Other / BSD"
+    validations:
+      required: true
+
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal Emulator
+      description: What terminal emulator are you using?
+      placeholder: "e.g., Alacritty, Ghostty, Kitty, iTerm2, WezTerm, Windows Terminal, Tmux"
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Confirmation
+      options:
+        - label: I have verified that this issue does not already exist in the issue tracker.
+          required: true
+        - label: I have tested this against the latest release or master branch of skat-os.
+          required: true

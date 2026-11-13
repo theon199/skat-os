@@ -52,8 +52,7 @@ impl Editor {
                     .with_context(|| format!("Failed to create parent directory for {:?}", path))?;
             }
             let text = self.buffer.get_text();
-            fs::write(path, text)
-                .with_context(|| format!("Failed to save file to {:?}", path))?;
+            fs::write(path, text).with_context(|| format!("Failed to save file to {:?}", path))?;
             self.buffer.is_dirty = false;
         }
         Ok(())
@@ -66,8 +65,7 @@ impl Editor {
                 .with_context(|| format!("Failed to create parent directory for {:?}", path))?;
         }
         let text = self.buffer.get_text();
-        fs::write(path, text)
-            .with_context(|| format!("Failed to save file to {:?}", path))?;
+        fs::write(path, text).with_context(|| format!("Failed to save file to {:?}", path))?;
         self.file_path = Some(path.to_path_buf());
         self.buffer.is_dirty = false;
         Ok(())

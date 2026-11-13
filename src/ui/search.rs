@@ -1,7 +1,7 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
-use ratatui::Frame;
 
 use crate::app::App;
 use crate::ui::theme::Theme;
@@ -55,7 +55,10 @@ impl SearchView {
 
             let line = Line::from(vec![
                 Span::styled(prefix, style),
-                Span::styled(format!("{}:{}  ", m.relative_path, m.line_number), loc_style),
+                Span::styled(
+                    format!("{}:{}  ", m.relative_path, m.line_number),
+                    loc_style,
+                ),
                 Span::styled(&m.line_content, style),
             ]);
 
@@ -72,12 +75,10 @@ impl SearchView {
         let list = List::new(list_items);
         frame.render_widget(list, chunks[0]);
 
-        let footer = Paragraph::new(Line::from(vec![
-            Span::styled(
-                " [↑/↓] Select match  [Enter] Jump to line  [Esc] Close ",
-                Theme::TITLE_INACTIVE,
-            ),
-        ]))
+        let footer = Paragraph::new(Line::from(vec![Span::styled(
+            " [↑/↓] Select match  [Enter] Jump to line  [Esc] Close ",
+            Theme::TITLE_INACTIVE,
+        )]))
         .alignment(ratatui::layout::Alignment::Center);
         frame.render_widget(footer, chunks[1]);
     }

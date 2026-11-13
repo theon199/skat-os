@@ -2,9 +2,15 @@
 name = "skat-os"
 version = "0.1.0"
 edition = "2024"
+authors = ["Charan <https://github.com/theon199>"]
 description = "Lightweight Terminal Document Operating System & Real-Time Multiplayer Runbooks"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
+homepage = "https://github.com/theon199/skat-os"
+repository = "https://github.com/theon199/skat-os"
+documentation = "https://docs.rs/skat-os"
+keywords = ["terminal", "tui", "runbook", "editor", "markdown"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 ansi-to-tui = "8.0.1"

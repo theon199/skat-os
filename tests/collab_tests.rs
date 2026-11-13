@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use skat_os::cli::{parse_cli_args, CliCommand};
+use skat_os::cli::{CliCommand, parse_cli_args};
 use skat_os::collab::{CollabClient, CollabMessage, CollabServer};
 use skat_os::editor::buffer::TextBuffer;
 use skat_os::runner::Runner;
@@ -11,16 +11,31 @@ use skat_os::runner::Runner;
 fn test_cli_argument_parsing() {
     // 1. Default invocation
     let cmd = parse_cli_args(&["skat-os".to_string()]).unwrap();
-    assert_eq!(cmd, CliCommand::Local { workspace: PathBuf::from("./docs") });
+    assert_eq!(
+        cmd,
+        CliCommand::Local {
+            workspace: PathBuf::from("./docs")
+        }
+    );
 
     // 2. Custom workspace
     let cmd = parse_cli_args(&["skat-os".to_string(), "./my_notes".to_string()]).unwrap();
-    assert_eq!(cmd, CliCommand::Local { workspace: PathBuf::from("./my_notes") });
+    assert_eq!(
+        cmd,
+        CliCommand::Local {
+            workspace: PathBuf::from("./my_notes")
+        }
+    );
 
     // 3. Host with defaults
     let cmd = parse_cli_args(&["skat-os".to_string(), "host".to_string()]).unwrap();
     match cmd {
-        CliCommand::Host { port, workspace, headless, .. } => {
+        CliCommand::Host {
+            port,
+            workspace,
+            headless,
+            ..
+        } => {
             assert_eq!(port, 2222);
             assert_eq!(workspace, PathBuf::from("./docs"));
             assert!(!headless);
@@ -39,7 +54,8 @@ fn test_cli_argument_parsing() {
         "--name".to_string(),
         "Alice".to_string(),
         "--headless".to_string(),
-    ]).unwrap();
+    ])
+    .unwrap();
     assert_eq!(
         cmd,
         CliCommand::Host {
@@ -57,7 +73,8 @@ fn test_cli_argument_parsing() {
         "192.168.1.50:2222".to_string(),
         "--name".to_string(),
         "Bob".to_string(),
-    ]).unwrap();
+    ])
+    .unwrap();
     assert_eq!(
         cmd,
         CliCommand::Join {
@@ -70,9 +87,13 @@ fn test_cli_argument_parsing() {
 #[tokio::test]
 async fn test_collab_server_and_client_handshake_and_doc_sync() {
     let initial_doc = "# Living Runbook\n\n```bash\necho ready\n```\n";
-    let server_handle = CollabServer::bind("127.0.0.1:0", initial_doc.to_string(), "runbook.md".to_string())
-        .await
-        .expect("Server should bind to ephemeral port");
+    let server_handle = CollabServer::bind(
+        "127.0.0.1:0",
+        initial_doc.to_string(),
+        "runbook.md".to_string(),
+    )
+    .await
+    .expect("Server should bind to ephemeral port");
 
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
@@ -111,7 +132,10 @@ async fn test_collab_server_and_client_handshake_and_doc_sync() {
         }
         sleep(Duration::from_millis(20)).await;
     }
-    assert!(received_joined, "Alice should have received PeerJoined for Bob");
+    assert!(
+        received_joined,
+        "Alice should have received PeerJoined for Bob"
+    );
 
     server_handle.stop();
 }
@@ -119,13 +143,21 @@ async fn test_collab_server_and_client_handshake_and_doc_sync() {
 #[tokio::test]
 async fn test_realtime_typing_and_editing_synchronization() {
     let initial_doc = "Hello";
-    let server_handle = CollabServer::bind("127.0.0.1:0", initial_doc.to_string(), "test.md".to_string())
-        .await
-        .unwrap();
+    let server_handle = CollabServer::bind(
+        "127.0.0.1:0",
+        initial_doc.to_string(),
+        "test.md".to_string(),
+    )
+    .await
+    .unwrap();
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let mut alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let mut alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
 
     let mut alice_buf = TextBuffer::from_str(&alice.initial_content);
     let mut bob_buf = TextBuffer::from_str(&bob.initial_content);
@@ -193,13 +225,21 @@ async fn test_realtime_typing_and_editing_synchronization() {
 
 #[tokio::test]
 async fn test_multi_client_cursor_broadcast() {
-    let server_handle = CollabServer::bind("127.0.0.1:0", "Line 1\nLine 2\nLine 3\n".to_string(), "test.md".to_string())
-        .await
-        .unwrap();
+    let server_handle = CollabServer::bind(
+        "127.0.0.1:0",
+        "Line 1\nLine 2\nLine 3\n".to_string(),
+        "test.md".to_string(),
+    )
+    .await
+    .unwrap();
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
 
     // Alice moves cursor to Line 2, Col 4
     alice.send_cursor_move(2, 4);
@@ -222,20 +262,28 @@ async fn test_multi_client_cursor_broadcast() {
         sleep(Duration::from_millis(20)).await;
     }
 
-    assert!(cursor_received, "Bob should receive Alice's cursor movement");
+    assert!(
+        cursor_received,
+        "Bob should receive Alice's cursor movement"
+    );
     server_handle.stop();
 }
 
 #[tokio::test]
 async fn test_shared_code_block_execution_broadcast() {
     let doc = "# Runbook\n\n```bash\necho \"distributed shell\"\n```\n";
-    let server_handle = CollabServer::bind("127.0.0.1:0", doc.to_string(), "runbook.md".to_string())
-        .await
-        .unwrap();
+    let server_handle =
+        CollabServer::bind("127.0.0.1:0", doc.to_string(), "runbook.md".to_string())
+            .await
+            .unwrap();
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
 
     let mut bob_buf = TextBuffer::from_str(&bob.initial_content);
 
@@ -253,7 +301,11 @@ async fn test_shared_code_block_execution_broadcast() {
 
     // Alice applies locally and broadcasts OutputUpdate
     Runner::apply_output(&mut alice_buf, &block, &result);
-    alice.send_output_update("block_0".to_string(), result.stdout.clone(), result.exit_code);
+    alice.send_output_update(
+        "block_0".to_string(),
+        result.stdout.clone(),
+        result.exit_code,
+    );
 
     // Bob receives RunBlock and OutputUpdate
     let mut run_received = false;
@@ -266,7 +318,12 @@ async fn test_shared_code_block_execution_broadcast() {
                     assert_eq!(block_id, "block_0");
                     run_received = true;
                 }
-                CollabMessage::OutputUpdate { block_id, text, exit_code, .. } => {
+                CollabMessage::OutputUpdate {
+                    block_id,
+                    text,
+                    exit_code,
+                    ..
+                } => {
                     assert_eq!(block_id, "block_0");
                     assert_eq!(exit_code, 0);
                     Runner::apply_output_by_id(&mut bob_buf, &block_id, &text, exit_code);
@@ -296,13 +353,21 @@ async fn test_shared_code_block_execution_broadcast() {
 
 #[tokio::test]
 async fn test_client_disconnect_handling() {
-    let server_handle = CollabServer::bind("127.0.0.1:0", "Test document\n".to_string(), "test.md".to_string())
-        .await
-        .unwrap();
+    let server_handle = CollabServer::bind(
+        "127.0.0.1:0",
+        "Test document\n".to_string(),
+        "test.md".to_string(),
+    )
+    .await
+    .unwrap();
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let mut alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let mut alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
     let bob_id = bob.my_id.clone();
 
     // Consume Bob's joined notification on Alice
@@ -329,20 +394,30 @@ async fn test_client_disconnect_handling() {
         sleep(Duration::from_millis(20)).await;
     }
 
-    assert!(left_received, "Alice should receive PeerLeft when Bob disconnects");
+    assert!(
+        left_received,
+        "Alice should receive PeerLeft when Bob disconnects"
+    );
     server_handle.stop();
 }
 
 #[tokio::test]
 async fn test_three_way_concurrent_collaboration() {
-    let server_handle = CollabServer::bind("127.0.0.1:0", "Doc:\n".to_string(), "shared.md".to_string())
-        .await
-        .unwrap();
+    let server_handle =
+        CollabServer::bind("127.0.0.1:0", "Doc:\n".to_string(), "shared.md".to_string())
+            .await
+            .unwrap();
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
-    let mut charlie = CollabClient::connect(&addr, "Charlie".to_string()).await.unwrap();
+    let alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
+    let mut charlie = CollabClient::connect(&addr, "Charlie".to_string())
+        .await
+        .unwrap();
 
     // Alice types 'A', Bob types 'B'
     alice.send_insert_char(5, 'A');
@@ -361,7 +436,10 @@ async fn test_three_way_concurrent_collaboration() {
         sleep(Duration::from_millis(20)).await;
     }
 
-    assert!(count >= 2, "Charlie should receive both inserts from Alice and Bob");
+    assert!(
+        count >= 2,
+        "Charlie should receive both inserts from Alice and Bob"
+    );
     server_handle.stop();
 }
 
@@ -382,8 +460,12 @@ async fn test_multi_peer_task_checkbox_toggling() {
     .unwrap();
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let mut alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let mut alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
 
     let mut alice_buf = TextBuffer::from_str(&alice.initial_content);
     let mut bob_buf = TextBuffer::from_str(&bob.initial_content);
@@ -402,7 +484,12 @@ async fn test_multi_peer_task_checkbox_toggling() {
     let mut bob_received_toggle = false;
     for _ in 0..25 {
         while let Some(msg) = bob.try_recv() {
-            if let CollabMessage::ToggleTask { peer_id: _, line, checked } = msg {
+            if let CollabMessage::ToggleTask {
+                peer_id: _,
+                line,
+                checked,
+            } = msg
+            {
                 assert_eq!(line, 1);
                 assert!(checked);
                 assert!(bob_buf.set_task_checked(line, checked));
@@ -428,8 +515,13 @@ async fn test_multi_peer_task_checkbox_toggling() {
     let mut alice_received_toggle = false;
     for _ in 0..25 {
         while let Some(msg) = alice.try_recv() {
-            if let CollabMessage::ToggleTask { peer_id: _, line, checked } = msg
-                && line == 2 && checked
+            if let CollabMessage::ToggleTask {
+                peer_id: _,
+                line,
+                checked,
+            } = msg
+                && line == 2
+                && checked
             {
                 assert!(alice_buf.set_task_checked(line, checked));
                 alice_received_toggle = true;
@@ -440,15 +532,23 @@ async fn test_multi_peer_task_checkbox_toggling() {
         }
         sleep(Duration::from_millis(20)).await;
     }
-    assert!(alice_received_toggle, "Alice should receive Bob's ToggleTask");
+    assert!(
+        alice_received_toggle,
+        "Alice should receive Bob's ToggleTask"
+    );
     assert_eq!(alice_buf.line_to_string(2), "- [x] Run database migrations");
     assert_eq!(alice_buf.task_stats(), Some((2, 3)));
 
     // 3. New peer (Charlie) connects: server state should have both tasks checked in DocSync
-    let charlie = CollabClient::connect(&addr, "Charlie".to_string()).await.unwrap();
+    let charlie = CollabClient::connect(&addr, "Charlie".to_string())
+        .await
+        .unwrap();
     let charlie_buf = TextBuffer::from_str(&charlie.initial_content);
     assert_eq!(charlie_buf.line_to_string(1), "- [x] Deploy web service");
-    assert_eq!(charlie_buf.line_to_string(2), "- [x] Run database migrations");
+    assert_eq!(
+        charlie_buf.line_to_string(2),
+        "- [x] Run database migrations"
+    );
     assert_eq!(charlie_buf.task_stats(), Some((2, 3)));
 
     server_handle.stop();
@@ -474,8 +574,12 @@ echo "Targeting cluster: {{fetch_cluster.stdout}}"
     .unwrap();
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
 
     let mut alice_buf = TextBuffer::from_str(&alice.initial_content);
     let mut bob_buf = TextBuffer::from_str(&bob.initial_content);
@@ -515,7 +619,12 @@ echo "Targeting cluster: {{fetch_cluster.stdout}}"
                 CollabMessage::RunBlock { block_id, .. } => {
                     run_blocks_seen.push(block_id);
                 }
-                CollabMessage::OutputUpdate { block_id, text, exit_code, .. } => {
+                CollabMessage::OutputUpdate {
+                    block_id,
+                    text,
+                    exit_code,
+                    ..
+                } => {
                     output_updates_seen.push(block_id.clone());
                     Runner::apply_output_by_id(&mut bob_buf, &block_id, &text, exit_code);
                 }
@@ -545,13 +654,18 @@ async fn test_multi_peer_streaming_broadcast_synchronization() {
     use skat_os::runner::OutputStatus;
 
     let doc = "# Living Runbook\n\n```bash name=deploy\necho deploy\n```\n";
-    let server_handle = CollabServer::bind("127.0.0.1:0", doc.to_string(), "runbook.md".to_string())
-        .await
-        .expect("Server should bind");
+    let server_handle =
+        CollabServer::bind("127.0.0.1:0", doc.to_string(), "runbook.md".to_string())
+            .await
+            .expect("Server should bind");
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
 
     let mut alice_buf = TextBuffer::from_str(doc);
     let mut bob_buf = TextBuffer::from_str(&bob.initial_content);
@@ -562,11 +676,27 @@ async fn test_multi_peer_streaming_broadcast_synchronization() {
 
     // 2. Alice streams chunks
     let mut alice_acc = String::new();
-    Runner::append_stream_chunk(&mut alice_buf, "deploy", "Pulling container image...\n", &mut alice_acc);
-    alice.send_stream_chunk("deploy".to_string(), "Pulling container image...\n".to_string());
+    Runner::append_stream_chunk(
+        &mut alice_buf,
+        "deploy",
+        "Pulling container image...\n",
+        &mut alice_acc,
+    );
+    alice.send_stream_chunk(
+        "deploy".to_string(),
+        "Pulling container image...\n".to_string(),
+    );
 
-    Runner::append_stream_chunk(&mut alice_buf, "deploy", "Container started successfully.\n", &mut alice_acc);
-    alice.send_stream_chunk("deploy".to_string(), "Container started successfully.\n".to_string());
+    Runner::append_stream_chunk(
+        &mut alice_buf,
+        "deploy",
+        "Container started successfully.\n",
+        &mut alice_acc,
+    );
+    alice.send_stream_chunk(
+        "deploy".to_string(),
+        "Container started successfully.\n".to_string(),
+    );
 
     // 3. Alice ends stream with exit code 0
     let processed = skat_os::ansi::process_terminal_stream(&alice_acc);
@@ -585,19 +715,35 @@ async fn test_multi_peer_streaming_broadcast_synchronization() {
                 CollabMessage::StreamStart { block_id, .. } => {
                     assert_eq!(block_id, "deploy");
                     bob_received_start = true;
-                    Runner::apply_streaming_status(&mut bob_buf, &block_id, OutputStatus::Running, "");
+                    Runner::apply_streaming_status(
+                        &mut bob_buf,
+                        &block_id,
+                        OutputStatus::Running,
+                        "",
+                    );
                 }
-                CollabMessage::StreamChunk { block_id, chunk, .. } => {
+                CollabMessage::StreamChunk {
+                    block_id, chunk, ..
+                } => {
                     assert_eq!(block_id, "deploy");
                     bob_chunks_count += 1;
                     Runner::append_stream_chunk(&mut bob_buf, &block_id, &chunk, &mut bob_acc);
                 }
-                CollabMessage::StreamEnd { block_id, exit_code, .. } => {
+                CollabMessage::StreamEnd {
+                    block_id,
+                    exit_code,
+                    ..
+                } => {
                     assert_eq!(block_id, "deploy");
                     assert_eq!(exit_code, 0);
                     bob_received_end = true;
                     let processed = skat_os::ansi::process_terminal_stream(&bob_acc);
-                    Runner::apply_streaming_status(&mut bob_buf, &block_id, OutputStatus::Exit(exit_code), &processed);
+                    Runner::apply_streaming_status(
+                        &mut bob_buf,
+                        &block_id,
+                        OutputStatus::Exit(exit_code),
+                        &processed,
+                    );
                 }
                 _ => {}
             }
@@ -632,8 +778,12 @@ async fn test_multi_peer_stream_interruption_broadcast() {
         .expect("Server should bind");
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
 
     let mut alice_buf = TextBuffer::from_str(doc);
     let mut bob_buf = TextBuffer::from_str(&bob.initial_content);
@@ -643,12 +793,22 @@ async fn test_multi_peer_stream_interruption_broadcast() {
     Runner::apply_streaming_status(&mut alice_buf, "backup", OutputStatus::Running, "");
 
     let mut alice_acc = String::new();
-    Runner::append_stream_chunk(&mut alice_buf, "backup", "Archiving /var/data...\n", &mut alice_acc);
+    Runner::append_stream_chunk(
+        &mut alice_buf,
+        "backup",
+        "Archiving /var/data...\n",
+        &mut alice_acc,
+    );
     alice.send_stream_chunk("backup".to_string(), "Archiving /var/data...\n".to_string());
 
     // Alice is interrupted with Ctrl+C (exit_code 130)
     let processed = skat_os::ansi::process_terminal_stream(&alice_acc);
-    Runner::apply_streaming_status(&mut alice_buf, "backup", OutputStatus::Interrupted, &processed);
+    Runner::apply_streaming_status(
+        &mut alice_buf,
+        "backup",
+        OutputStatus::Interrupted,
+        &processed,
+    );
     alice.send_stream_end("backup".to_string(), 130);
 
     // Bob processes network messages
@@ -659,16 +819,32 @@ async fn test_multi_peer_stream_interruption_broadcast() {
         while let Some(msg) = bob.try_recv() {
             match msg {
                 CollabMessage::StreamStart { block_id, .. } => {
-                    Runner::apply_streaming_status(&mut bob_buf, &block_id, OutputStatus::Running, "");
+                    Runner::apply_streaming_status(
+                        &mut bob_buf,
+                        &block_id,
+                        OutputStatus::Running,
+                        "",
+                    );
                 }
-                CollabMessage::StreamChunk { block_id, chunk, .. } => {
+                CollabMessage::StreamChunk {
+                    block_id, chunk, ..
+                } => {
                     Runner::append_stream_chunk(&mut bob_buf, &block_id, &chunk, &mut bob_acc);
                 }
-                CollabMessage::StreamEnd { block_id, exit_code, .. } => {
+                CollabMessage::StreamEnd {
+                    block_id,
+                    exit_code,
+                    ..
+                } => {
                     assert_eq!(exit_code, 130);
                     bob_interrupted = true;
                     let processed = skat_os::ansi::process_terminal_stream(&bob_acc);
-                    Runner::apply_streaming_status(&mut bob_buf, &block_id, OutputStatus::Interrupted, &processed);
+                    Runner::apply_streaming_status(
+                        &mut bob_buf,
+                        &block_id,
+                        OutputStatus::Interrupted,
+                        &processed,
+                    );
                 }
                 _ => {}
             }
@@ -692,13 +868,18 @@ async fn test_multi_peer_realtime_streaming_command_execution() {
     use skat_os::runner::OutputStatus;
 
     let doc = "# Build Pipeline\n\n```bash name=pipeline\necho \"Step 1: Lint\"\nsleep 0.05\necho \"Step 2: Test\"\n```\n";
-    let server_handle = CollabServer::bind("127.0.0.1:0", doc.to_string(), "pipeline.md".to_string())
-        .await
-        .expect("Server should bind");
+    let server_handle =
+        CollabServer::bind("127.0.0.1:0", doc.to_string(), "pipeline.md".to_string())
+            .await
+            .expect("Server should bind");
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
 
     let mut alice_buf = TextBuffer::from_str(doc);
     let mut bob_buf = TextBuffer::from_str(&bob.initial_content);
@@ -738,7 +919,12 @@ async fn test_multi_peer_realtime_streaming_command_execution() {
 
     let final_acc = alice_acc.lock().unwrap().clone();
     let processed = skat_os::ansi::process_terminal_stream(&final_acc);
-    Runner::apply_streaming_status(&mut alice_buf, &block.id, OutputStatus::Exit(result.exit_code), &processed);
+    Runner::apply_streaming_status(
+        &mut alice_buf,
+        &block.id,
+        OutputStatus::Exit(result.exit_code),
+        &processed,
+    );
 
     // Bob receives events over TCP in real time
     let mut bob_acc = String::new();
@@ -748,15 +934,31 @@ async fn test_multi_peer_realtime_streaming_command_execution() {
         while let Some(msg) = bob.try_recv() {
             match msg {
                 CollabMessage::StreamStart { block_id, .. } => {
-                    Runner::apply_streaming_status(&mut bob_buf, &block_id, OutputStatus::Running, "");
+                    Runner::apply_streaming_status(
+                        &mut bob_buf,
+                        &block_id,
+                        OutputStatus::Running,
+                        "",
+                    );
                 }
-                CollabMessage::StreamChunk { block_id, chunk, .. } => {
+                CollabMessage::StreamChunk {
+                    block_id, chunk, ..
+                } => {
                     Runner::append_stream_chunk(&mut bob_buf, &block_id, &chunk, &mut bob_acc);
                 }
-                CollabMessage::StreamEnd { block_id, exit_code, .. } => {
+                CollabMessage::StreamEnd {
+                    block_id,
+                    exit_code,
+                    ..
+                } => {
                     bob_done = true;
                     let processed = skat_os::ansi::process_terminal_stream(&bob_acc);
-                    Runner::apply_streaming_status(&mut bob_buf, &block_id, OutputStatus::Exit(exit_code), &processed);
+                    Runner::apply_streaming_status(
+                        &mut bob_buf,
+                        &block_id,
+                        OutputStatus::Exit(exit_code),
+                        &processed,
+                    );
                 }
                 _ => {}
             }
@@ -781,13 +983,18 @@ async fn test_multi_peer_parameter_update_broadcast() {
     use skat_os::form::FormParser;
 
     let doc = "# Cluster Runbook\n\nTarget: {{param:select:CLUSTER=prod-us-east,prod-eu-west,staging}}\nNamespace: {{param:input:NAMESPACE=default}}\nToggle: {{param:toggle:DRY_RUN=false}}\n";
-    let server_handle = CollabServer::bind("127.0.0.1:0", doc.to_string(), "cluster.md".to_string())
-        .await
-        .expect("Server should bind");
+    let server_handle =
+        CollabServer::bind("127.0.0.1:0", doc.to_string(), "cluster.md".to_string())
+            .await
+            .expect("Server should bind");
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
 
     let mut alice_buf = TextBuffer::from_str(doc);
     let mut bob_buf = TextBuffer::from_str(&bob.initial_content);
@@ -806,7 +1013,10 @@ async fn test_multi_peer_parameter_update_broadcast() {
 
     for _ in 0..50 {
         while let Some(msg) = bob.try_recv() {
-            if let CollabMessage::ParamUpdate { param_name, value, .. } = msg {
+            if let CollabMessage::ParamUpdate {
+                param_name, value, ..
+            } = msg
+            {
                 FormParser::update_param_in_buffer(&mut bob_buf, &param_name, &value);
                 if param_name == "CLUSTER" && value == "prod-eu-west" {
                     received_cluster = true;
@@ -827,12 +1037,22 @@ async fn test_multi_peer_parameter_update_broadcast() {
 
     // Both buffers should match
     assert_eq!(alice_buf.get_text(), bob_buf.get_text());
-    assert!(bob_buf.get_text().contains("CLUSTER=prod-eu-west,staging,prod-us-east"));
+    assert!(
+        bob_buf
+            .get_text()
+            .contains("CLUSTER=prod-eu-west,staging,prod-us-east")
+    );
     assert!(bob_buf.get_text().contains("DRY_RUN=true"));
 
     // Connect Charlie late - should receive the updated document from the server state
-    let charlie = CollabClient::connect(&addr, "Charlie".to_string()).await.unwrap();
-    assert!(charlie.initial_content.contains("CLUSTER=prod-eu-west,staging,prod-us-east"));
+    let charlie = CollabClient::connect(&addr, "Charlie".to_string())
+        .await
+        .unwrap();
+    assert!(
+        charlie
+            .initial_content
+            .contains("CLUSTER=prod-eu-west,staging,prod-us-east")
+    );
     assert!(charlie.initial_content.contains("DRY_RUN=true"));
 
     server_handle.stop();
@@ -840,8 +1060,8 @@ async fn test_multi_peer_parameter_update_broadcast() {
 
 #[tokio::test]
 async fn test_multi_peer_parameterized_runbook_execution() {
-    use std::collections::HashMap;
     use skat_os::form::FormParser;
+    use std::collections::HashMap;
 
     let doc = "# Deployment Runbook\n\nTarget Region: {{param:input:REGION=us-west-2}}\n\n```bash name=deploy\necho \"Deploying to {{params.REGION}} ($SKAT_PARAM_REGION)\"\n```\n";
     let server_handle = CollabServer::bind("127.0.0.1:0", doc.to_string(), "deploy.md".to_string())
@@ -849,8 +1069,12 @@ async fn test_multi_peer_parameterized_runbook_execution() {
         .expect("Server should bind");
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let mut alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let mut alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
 
     let mut alice_buf = TextBuffer::from_str(doc);
     let mut bob_buf = TextBuffer::from_str(&bob.initial_content);
@@ -863,8 +1087,11 @@ async fn test_multi_peer_parameterized_runbook_execution() {
     let mut alice_received = false;
     for _ in 0..50 {
         while let Some(msg) = alice.try_recv() {
-            if let CollabMessage::ParamUpdate { param_name, value, .. } = msg
-                && param_name == "REGION" && value == "eu-central-1"
+            if let CollabMessage::ParamUpdate {
+                param_name, value, ..
+            } = msg
+                && param_name == "REGION"
+                && value == "eu-central-1"
             {
                 FormParser::update_param_in_buffer(&mut alice_buf, &param_name, &value);
                 alice_received = true;
@@ -885,15 +1112,26 @@ async fn test_multi_peer_parameterized_runbook_execution() {
     let block = &blocks[0];
     let temp_dir = tempfile::tempdir().unwrap();
 
-    let interpolated_code = Runner::interpolate_variables_with_context(&block.code, &HashMap::new(), &params, &HashMap::new());
+    let interpolated_code = Runner::interpolate_variables_with_context(
+        &block.code,
+        &HashMap::new(),
+        &params,
+        &HashMap::new(),
+    );
     let mut block_to_run = block.clone();
     block_to_run.code = interpolated_code;
-    let env_vars = Runner::build_environment_variables_with_context(&HashMap::new(), &params, &HashMap::new());
+    let env_vars =
+        Runner::build_environment_variables_with_context(&HashMap::new(), &params, &HashMap::new());
 
-    let result = Runner::execute_with_env(&block_to_run, temp_dir.path(), &env_vars).await.unwrap();
+    let result = Runner::execute_with_env(&block_to_run, temp_dir.path(), &env_vars)
+        .await
+        .unwrap();
 
     assert_eq!(result.exit_code, 0);
-    assert_eq!(result.stdout.trim(), "Deploying to eu-central-1 (eu-central-1)");
+    assert_eq!(
+        result.stdout.trim(),
+        "Deploying to eu-central-1 (eu-central-1)"
+    );
 
     // Alice updates her buffer with the output and broadcasts to Bob
     Runner::apply_output(&mut alice_buf, block, &result);
@@ -904,8 +1142,14 @@ async fn test_multi_peer_parameterized_runbook_execution() {
     let mut bob_client = bob;
     for _ in 0..50 {
         while let Some(msg) = bob_client.try_recv() {
-            if let CollabMessage::OutputUpdate { block_id, text, exit_code, .. } = msg
-                && block_id == block.id && exit_code == 0
+            if let CollabMessage::OutputUpdate {
+                block_id,
+                text,
+                exit_code,
+                ..
+            } = msg
+                && block_id == block.id
+                && exit_code == 0
             {
                 Runner::apply_output_by_id(&mut bob_buf, &block_id, &text, exit_code);
                 bob_received_exec = true;
@@ -919,7 +1163,11 @@ async fn test_multi_peer_parameterized_runbook_execution() {
 
     assert!(bob_received_exec);
     assert_eq!(alice_buf.get_text(), bob_buf.get_text());
-    assert!(bob_buf.get_text().contains("Deploying to eu-central-1 (eu-central-1)"));
+    assert!(
+        bob_buf
+            .get_text()
+            .contains("Deploying to eu-central-1 (eu-central-1)")
+    );
 
     server_handle.stop();
 }
@@ -927,13 +1175,18 @@ async fn test_multi_peer_parameterized_runbook_execution() {
 #[tokio::test]
 async fn test_collab_cursor_deduplication_and_disconnection_stress() {
     let doc = "# Collaborative Session\nLine 1\nLine 2\nLine 3\nLine 4\n";
-    let server_handle = CollabServer::bind("127.0.0.1:0", doc.to_string(), "session.md".to_string())
-        .await
-        .expect("Server should bind");
+    let server_handle =
+        CollabServer::bind("127.0.0.1:0", doc.to_string(), "session.md".to_string())
+            .await
+            .expect("Server should bind");
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
-    let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-    let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
+    let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
 
     assert!(alice.is_connected());
     assert!(bob.is_connected());
@@ -954,14 +1207,19 @@ async fn test_collab_cursor_deduplication_and_disconnection_stress() {
     for _ in 0..25 {
         while let Some(msg) = bob.try_recv() {
             if let CollabMessage::CursorMove { peer_id, line, col } = msg
-                && peer_id == alice_id && line == 4 && col == 12
+                && peer_id == alice_id
+                && line == 4
+                && col == 12
             {
                 cursor_moves += 1;
             }
         }
         sleep(Duration::from_millis(15)).await;
     }
-    assert_eq!(cursor_moves, 1, "Redundant cursor moves must be deduplicated across TCP broadcast");
+    assert_eq!(
+        cursor_moves, 1,
+        "Redundant cursor moves must be deduplicated across TCP broadcast"
+    );
 
     // Alice disconnects
     drop(alice);
@@ -983,7 +1241,10 @@ async fn test_collab_cursor_deduplication_and_disconnection_stress() {
         sleep(Duration::from_millis(15)).await;
     }
 
-    assert!(alice_left, "Bob must receive PeerLeft notification upon Alice disconnect");
+    assert!(
+        alice_left,
+        "Bob must receive PeerLeft notification upon Alice disconnect"
+    );
 
     // Server state must have cleaned up Alice
     {
@@ -994,4 +1255,3 @@ async fn test_collab_cursor_deduplication_and_disconnection_stress() {
 
     server_handle.stop();
 }
-

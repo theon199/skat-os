@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
@@ -46,7 +46,9 @@ impl CollabClient {
             .context("Timed out waiting for DocSync from host")??;
 
         if n == 0 {
-            return Err(anyhow::anyhow!("Host closed connection before sending DocSync"));
+            return Err(anyhow::anyhow!(
+                "Host closed connection before sending DocSync"
+            ));
         }
 
         let sync_msg: CollabMessage = serde_json::from_str(sync_line.trim())
@@ -60,7 +62,11 @@ impl CollabClient {
                 your_id,
                 peers,
             } => (your_id, doc_name, content, peers),
-            _ => return Err(anyhow::anyhow!("Expected DocSync message, got unexpected message")),
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "Expected DocSync message, got unexpected message"
+                ));
+            }
         };
 
         // 3. Channels for communication with App event loop
@@ -74,7 +80,9 @@ impl CollabClient {
             while let Some(msg) = outgoing_rx.recv().await {
                 if let Ok(mut bytes) = serde_json::to_vec(&msg) {
                     bytes.push(b'\n');
-                    if write_half.write_all(&bytes).await.is_err() || write_half.flush().await.is_err() {
+                    if write_half.write_all(&bytes).await.is_err()
+                        || write_half.flush().await.is_err()
+                    {
                         connected_w.store(false, Ordering::SeqCst);
                         break;
                     }
@@ -219,7 +227,12 @@ impl CollabClient {
         });
     }
 
-    pub fn send_approval_request(&self, block_id: String, command_preview: String, required_approvals: usize) {
+    pub fn send_approval_request(
+        &self,
+        block_id: String,
+        command_preview: String,
+        required_approvals: usize,
+    ) {
         self.send(CollabMessage::ApprovalRequest {
             peer_id: self.my_id.clone(),
             block_id,

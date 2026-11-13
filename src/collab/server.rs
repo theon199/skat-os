@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 use tokio::task::JoinHandle;
 
 use crate::collab::protocol::{CollabMessage, PeerInfo};
@@ -66,7 +66,11 @@ impl CollabServerHandle {
 pub struct CollabServer;
 
 impl CollabServer {
-    pub async fn bind(addr: &str, initial_content: String, doc_name: String) -> Result<CollabServerHandle> {
+    pub async fn bind(
+        addr: &str,
+        initial_content: String,
+        doc_name: String,
+    ) -> Result<CollabServerHandle> {
         let listener = TcpListener::bind(addr).await?;
         let local_addr = listener.local_addr()?;
         let state = Arc::new(Mutex::new(ServerState::new(initial_content, doc_name)));
@@ -115,7 +119,11 @@ impl CollabServer {
         let (peer_id, _color_idx, doc_sync_msg, _peer_joined_msg, mut peer_rx) = {
             let mut s = state.lock().await;
             s.peer_counter += 1;
-            let id = format!("peer_{}_{}", client_name.to_lowercase().replace(' ', "_"), s.peer_counter);
+            let id = format!(
+                "peer_{}_{}",
+                client_name.to_lowercase().replace(' ', "_"),
+                s.peer_counter
+            );
             let color = s.next_color_idx;
             s.next_color_idx += 1;
 
@@ -152,7 +160,9 @@ impl CollabServer {
                 while let Some(msg) = peer_rx.recv().await {
                     if let Ok(mut bytes) = serde_json::to_vec(&msg) {
                         bytes.push(b'\n');
-                        if write_half.write_all(&bytes).await.is_err() || write_half.flush().await.is_err() {
+                        if write_half.write_all(&bytes).await.is_err()
+                            || write_half.flush().await.is_err()
+                        {
                             break;
                         }
                     }
@@ -177,7 +187,11 @@ impl CollabServer {
                 if let Ok(msg) = serde_json::from_str::<CollabMessage>(trimmed) {
                     let mut s = state.lock().await;
                     match &msg {
-                        CollabMessage::InsertChar { peer_id: _, pos, char } => {
+                        CollabMessage::InsertChar {
+                            peer_id: _,
+                            pos,
+                            char,
+                        } => {
                             let rope_len = s.content.len_chars();
                             let idx = (*pos).min(rope_len);
                             s.content.insert_char(idx, *char);
@@ -192,7 +206,11 @@ impl CollabServer {
                                 s.broadcast(&peer_id, &msg);
                             }
                         }
-                        CollabMessage::CursorMove { peer_id: _, line, col } => {
+                        CollabMessage::CursorMove {
+                            peer_id: _,
+                            line,
+                            col,
+                        } => {
                             let changed = if let Some(peer) = s.peers.get_mut(&peer_id) {
                                 if peer.cursor_line != *line || peer.cursor_col != *col {
                                     peer.cursor_line = *line;
@@ -211,18 +229,32 @@ impl CollabServer {
                         CollabMessage::RunBlock { .. } => {
                             s.broadcast(&peer_id, &msg);
                         }
-                        CollabMessage::OutputUpdate { peer_id: _, block_id: _, text: _, exit_code: _ } => {
+                        CollabMessage::OutputUpdate {
+                            peer_id: _,
+                            block_id: _,
+                            text: _,
+                            exit_code: _,
+                        } => {
                             s.broadcast(&peer_id, &msg);
                         }
-                        CollabMessage::ToggleTask { peer_id: _, line, checked } => {
+                        CollabMessage::ToggleTask {
+                            peer_id: _,
+                            line,
+                            checked,
+                        } => {
                             if *line < s.content.len_lines() {
                                 let line_str = s.content.line(*line).to_string();
-                                if let Some(info) = crate::editor::buffer::TextBuffer::parse_task_item(&line_str) {
+                                if let Some(info) =
+                                    crate::editor::buffer::TextBuffer::parse_task_item(&line_str)
+                                {
                                     let line_start = s.content.line_to_char(*line);
                                     let char_pos = line_start + info.check_char_col;
                                     if char_pos < s.content.len_chars() {
                                         s.content.remove(char_pos..char_pos + 1);
-                                        s.content.insert_char(char_pos, if *checked { 'x' } else { ' ' });
+                                        s.content.insert_char(
+                                            char_pos,
+                                            if *checked { 'x' } else { ' ' },
+                                        );
                                         s.version += 1;
                                     }
                                 }
@@ -238,12 +270,25 @@ impl CollabServer {
                         CollabMessage::StreamEnd { .. } => {
                             s.broadcast(&peer_id, &msg);
                         }
-                        CollabMessage::ParamUpdate { peer_id: _, param_name, value } => {
-                            crate::form::FormParser::update_param_in_rope(&mut s.content, param_name, value);
+                        CollabMessage::ParamUpdate {
+                            peer_id: _,
+                            param_name,
+                            value,
+                        } => {
+                            crate::form::FormParser::update_param_in_rope(
+                                &mut s.content,
+                                param_name,
+                                value,
+                            );
                             s.version += 1;
                             s.broadcast(&peer_id, &msg);
                         }
-                        CollabMessage::ApprovalRequest { peer_id: _, block_id, command_preview, required_approvals } => {
+                        CollabMessage::ApprovalRequest {
+                            peer_id: _,
+                            block_id,
+                            command_preview,
+                            required_approvals,
+                        } => {
                             let mut consensus = ApprovalConsensus::new(
                                 block_id.clone(),
                                 command_preview.clone(),
@@ -263,7 +308,11 @@ impl CollabServer {
                             };
                             s.broadcast_to_all(&status_msg);
                         }
-                        CollabMessage::ApprovalVote { peer_id: _, block_id, approver_name } => {
+                        CollabMessage::ApprovalVote {
+                            peer_id: _,
+                            block_id,
+                            approver_name,
+                        } => {
                             let mut status_msg = None;
                             if let Some(consensus) = s.pending_approvals.get_mut(block_id) {
                                 let approved = consensus.add_approval(approver_name.clone());
@@ -285,7 +334,8 @@ impl CollabServer {
             }
             writer_task.abort();
             Ok(())
-        }.await;
+        }
+        .await;
 
         // 6. Cleanup on disconnect (guaranteed to run even if sending DocSync or stream reading fails)
         {

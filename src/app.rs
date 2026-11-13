@@ -229,9 +229,13 @@ impl App {
             if let Some(out) = &b.existing_output
                 && let Some(fleet) = crate::mesh::FleetOutput::parse(&out.output_text)
             {
-                self.fleet_states.entry(b.id.clone()).or_insert_with(|| fleet.clone());
+                self.fleet_states
+                    .entry(b.id.clone())
+                    .or_insert_with(|| fleet.clone());
                 if let Some(n) = &b.name {
-                    self.fleet_states.entry(n.clone()).or_insert_with(|| fleet.clone());
+                    self.fleet_states
+                        .entry(n.clone())
+                        .or_insert_with(|| fleet.clone());
                 }
                 if let Some(t) = &b.target
                     && let Some(g) = t.strip_prefix('@')
@@ -243,7 +247,8 @@ impl App {
     }
 
     pub fn set_param(&mut self, param_name: &str, value: &str) {
-        self.params.insert(param_name.to_string(), value.to_string());
+        self.params
+            .insert(param_name.to_string(), value.to_string());
         crate::form::FormParser::update_param_in_buffer(&mut self.editor.buffer, param_name, value);
         if let Some(client) = &self.collab_client {
             client.send_param_update(param_name.to_string(), value.to_string());
@@ -251,7 +256,8 @@ impl App {
     }
 
     pub fn set_param_from_remote(&mut self, param_name: &str, value: &str) {
-        self.params.insert(param_name.to_string(), value.to_string());
+        self.params
+            .insert(param_name.to_string(), value.to_string());
         crate::form::FormParser::update_param_in_buffer(&mut self.editor.buffer, param_name, value);
     }
 
@@ -270,7 +276,8 @@ impl App {
         let server_handle = CollabServer::bind(&bind_addr, initial_content, doc_name).await?;
         let actual_port = server_handle.local_addr.port();
 
-        let client = CollabClient::connect(&format!("127.0.0.1:{}", actual_port), host_name).await?;
+        let client =
+            CollabClient::connect(&format!("127.0.0.1:{}", actual_port), host_name).await?;
         app.my_peer_id = Some(client.my_id.clone());
         for p in &client.initial_peers {
             app.peers.insert(p.id.clone(), p.clone());
@@ -333,7 +340,10 @@ impl App {
     pub fn open_document_with_line(&mut self, path: &Path, target_line: Option<usize>) {
         let is_different = self.editor.file_path.as_deref() != Some(path);
         if is_different && self.editor.is_dirty() {
-            let doc_name = self.editor.file_path.as_ref()
+            let doc_name = self
+                .editor
+                .file_path
+                .as_ref()
                 .and_then(|p| p.file_name())
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_else(|| "current document".to_string());
@@ -359,7 +369,11 @@ impl App {
             self.editor = new_editor;
             self.focus = FocusPane::Editor;
             self.refresh_params_and_tables();
-            let file_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+            let file_name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
             self.status_message = format!("Opened {}", file_name);
             if matches!(self.collab_mode, CollabMode::Host { .. }) {
                 self.broadcast_doc_sync();
@@ -374,7 +388,8 @@ impl App {
                 AppEvent::CodeExecuted { block, result } => {
                     self.is_running_block = false;
                     Runner::apply_output(&mut self.editor.buffer, &block, &result);
-                    self.status_message = format!("Execution finished [exit: {}]", result.exit_code);
+                    self.status_message =
+                        format!("Execution finished [exit: {}]", result.exit_code);
 
                     if let Some(tbl) = crate::table::TableData::parse(&result.stdout) {
                         self.table_states.insert(block.id.clone(), tbl.clone());
@@ -406,22 +421,44 @@ impl App {
                             }
                             output_content.push_str(&result.stderr);
                         }
-                        client.send_output_update(block.id.clone(), output_content, result.exit_code);
+                        client.send_output_update(
+                            block.id.clone(),
+                            output_content,
+                            result.exit_code,
+                        );
                     }
                 }
                 AppEvent::StreamChunk { block_id, chunk } => {
                     if let Some(ref mut cmd) = self.running_command {
                         if cmd.block_id == block_id {
-                            Runner::append_stream_chunk(&mut self.editor.buffer, &block_id, &chunk, &mut cmd.accumulated_output);
+                            Runner::append_stream_chunk(
+                                &mut self.editor.buffer,
+                                &block_id,
+                                &chunk,
+                                &mut cmd.accumulated_output,
+                            );
                         } else {
-                            Runner::append_stream_chunk(&mut self.editor.buffer, &block_id, &chunk, &mut String::new());
+                            Runner::append_stream_chunk(
+                                &mut self.editor.buffer,
+                                &block_id,
+                                &chunk,
+                                &mut String::new(),
+                            );
                         }
                     } else {
-                        Runner::append_stream_chunk(&mut self.editor.buffer, &block_id, &chunk, &mut String::new());
+                        Runner::append_stream_chunk(
+                            &mut self.editor.buffer,
+                            &block_id,
+                            &chunk,
+                            &mut String::new(),
+                        );
                     }
 
                     if let Some(b) = Runner::find_code_block_by_id(&self.editor.buffer, &block_id)
-                        && let Some(out) = Runner::find_following_output_block(&self.editor.buffer, b.end_fence_line)
+                        && let Some(out) = Runner::find_following_output_block(
+                            &self.editor.buffer,
+                            b.end_fence_line,
+                        )
                     {
                         self.editor.buffer.cursor_line = out.end_line;
                     }
@@ -434,7 +471,8 @@ impl App {
                     self.running_command = None;
                     self.is_running_block = false;
                     Runner::apply_output(&mut self.editor.buffer, &block, &result);
-                    self.status_message = format!("Execution finished [exit: {}]", result.exit_code);
+                    self.status_message =
+                        format!("Execution finished [exit: {}]", result.exit_code);
 
                     if let Some(tbl) = crate::table::TableData::parse(&result.stdout) {
                         self.table_states.insert(block.id.clone(), tbl.clone());
@@ -481,7 +519,8 @@ impl App {
                     total,
                 } => {
                     let display_name = block_name.unwrap_or_else(|| block_id.clone());
-                    self.status_message = format!("Running step {}/{}: {}...", index + 1, total, display_name);
+                    self.status_message =
+                        format!("Running step {}/{}: {}...", index + 1, total, display_name);
                     if let Some(client) = &self.collab_client {
                         client.send_stream_start(block_id);
                     }
@@ -489,16 +528,34 @@ impl App {
                 AppEvent::PlaybookStepChunk { block_id, chunk } => {
                     if let Some(ref mut cmd) = self.running_command {
                         if cmd.block_id == block_id {
-                            Runner::append_stream_chunk(&mut self.editor.buffer, &block_id, &chunk, &mut cmd.accumulated_output);
+                            Runner::append_stream_chunk(
+                                &mut self.editor.buffer,
+                                &block_id,
+                                &chunk,
+                                &mut cmd.accumulated_output,
+                            );
                         } else {
-                            Runner::append_stream_chunk(&mut self.editor.buffer, &block_id, &chunk, &mut String::new());
+                            Runner::append_stream_chunk(
+                                &mut self.editor.buffer,
+                                &block_id,
+                                &chunk,
+                                &mut String::new(),
+                            );
                         }
                     } else {
-                        Runner::append_stream_chunk(&mut self.editor.buffer, &block_id, &chunk, &mut String::new());
+                        Runner::append_stream_chunk(
+                            &mut self.editor.buffer,
+                            &block_id,
+                            &chunk,
+                            &mut String::new(),
+                        );
                     }
 
                     if let Some(b) = Runner::find_code_block_by_id(&self.editor.buffer, &block_id)
-                        && let Some(out) = Runner::find_following_output_block(&self.editor.buffer, b.end_fence_line)
+                        && let Some(out) = Runner::find_following_output_block(
+                            &self.editor.buffer,
+                            b.end_fence_line,
+                        )
                     {
                         self.editor.buffer.cursor_line = out.end_line;
                     }
@@ -527,7 +584,12 @@ impl App {
                         output_content = "(No output)".to_string();
                     }
 
-                    Runner::apply_output_by_id(&mut self.editor.buffer, &block.id, &output_content, result.exit_code);
+                    Runner::apply_output_by_id(
+                        &mut self.editor.buffer,
+                        &block.id,
+                        &output_content,
+                        result.exit_code,
+                    );
 
                     if let Some(tbl) = crate::table::TableData::parse(&result.stdout) {
                         self.table_states.insert(block.id.clone(), tbl.clone());
@@ -549,7 +611,11 @@ impl App {
                     }
 
                     if let Some(client) = &self.collab_client {
-                        client.send_output_update(block.id.clone(), output_content, result.exit_code);
+                        client.send_output_update(
+                            block.id.clone(),
+                            output_content,
+                            result.exit_code,
+                        );
                     }
                 }
                 AppEvent::PlaybookHalted {
@@ -571,7 +637,8 @@ impl App {
                 }
                 AppEvent::PlaybookCompleted { total } => {
                     self.is_running_block = false;
-                    self.status_message = format!("Playbook completed successfully ({} steps)", total);
+                    self.status_message =
+                        format!("Playbook completed successfully ({} steps)", total);
                 }
                 AppEvent::StatusMessage(msg) => {
                     self.status_message = msg;
@@ -602,189 +669,243 @@ impl App {
 
         for msg in incoming_messages {
             match msg {
-                    CollabMessage::DocSync {
-                        content,
-                        doc_name,
-                        version: _,
-                        your_id: _,
-                        peers,
-                    } => {
-                        self.editor.buffer = crate::editor::TextBuffer::from_str(&content);
-                        self.editor.file_path = Some(PathBuf::from(doc_name));
-                        self.editor.buffer.cursor_line = 0;
-                        self.editor.buffer.cursor_col = 0;
-                        for p in peers {
-                            self.peers.insert(p.id.clone(), p);
-                        }
-                        self.refresh_params_and_tables();
-                        self.status_message = "Document synchronized with room".to_string();
+                CollabMessage::DocSync {
+                    content,
+                    doc_name,
+                    version: _,
+                    your_id: _,
+                    peers,
+                } => {
+                    self.editor.buffer = crate::editor::TextBuffer::from_str(&content);
+                    self.editor.file_path = Some(PathBuf::from(doc_name));
+                    self.editor.buffer.cursor_line = 0;
+                    self.editor.buffer.cursor_col = 0;
+                    for p in peers {
+                        self.peers.insert(p.id.clone(), p);
                     }
-                    CollabMessage::PeerJoined { peer } => {
-                        let name = peer.name.clone();
-                        self.peers.insert(peer.id.clone(), peer);
-                        self.status_message = format!("Peer {} joined", name);
-                    }
-                    CollabMessage::PeerLeft { peer_id } => {
-                        if let Some(p) = self.peers.remove(&peer_id) {
-                            self.status_message = format!("Peer {} left the room", p.name);
-                        }
-                    }
-                    CollabMessage::InsertChar { peer_id, pos, char } => {
-                        self.editor.buffer.apply_remote_insert(pos, char);
-                        if let Some(peer) = self.peers.get_mut(&peer_id) {
-                            let (l, c) = self.editor.buffer.char_to_line_col(pos + 1);
-                            peer.cursor_line = l;
-                            peer.cursor_col = c;
-                        }
-                    }
-                    CollabMessage::DeleteChar { peer_id, pos } => {
-                        self.editor.buffer.apply_remote_delete(pos);
-                        if let Some(peer) = self.peers.get_mut(&peer_id) {
-                            let (l, c) = self.editor.buffer.char_to_line_col(pos);
-                            peer.cursor_line = l;
-                            peer.cursor_col = c;
-                        }
-                    }
-                    CollabMessage::CursorMove { peer_id, line, col } => {
-                        if let Some(peer) = self.peers.get_mut(&peer_id) {
-                            peer.cursor_line = line;
-                            peer.cursor_col = col;
-                        }
-                    }
-                    CollabMessage::RunBlock { peer_id, block_id } => {
-                        let peer_name = self
-                            .peers
-                            .get(&peer_id)
-                            .map(|p| p.name.as_str())
-                            .unwrap_or("Peer");
-                        self.status_message = format!("{} is running block {}...", peer_name, block_id);
-                    }
-                    CollabMessage::OutputUpdate {
-                        peer_id,
-                        block_id,
-                        text,
-                        exit_code,
-                    } => {
-                        let peer_name = self
-                            .peers
-                            .get(&peer_id)
-                            .map(|p| p.name.as_str())
-                            .unwrap_or("Peer");
-                        Runner::apply_output_by_id(&mut self.editor.buffer, &block_id, &text, exit_code);
-                        self.status_message =
-                            format!("Output updated [exit: {}] by {}", exit_code, peer_name);
-                    }
-                    CollabMessage::ToggleTask {
-                        peer_id,
-                        line,
-                        checked,
-                    } => {
-                        let peer_name = self
-                            .peers
-                            .get(&peer_id)
-                            .map(|p| p.name.as_str())
-                            .unwrap_or("Peer");
-                        if self.editor.buffer.set_task_checked(line, checked) {
-                            self.status_message = format!(
-                                "Task {} by {}",
-                                if checked { "completed" } else { "reopened" },
-                                peer_name
-                            );
-                        }
-                    }
-                    CollabMessage::StreamStart { peer_id, block_id } => {
-                        let peer_name = self
-                            .peers
-                            .get(&peer_id)
-                            .map(|p| p.name.as_str())
-                            .unwrap_or("Peer");
-                        self.remote_streams.insert(block_id.clone(), String::new());
-                        Runner::apply_streaming_status(
-                            &mut self.editor.buffer,
-                            &block_id,
-                            crate::runner::OutputStatus::Running,
-                            "",
-                        );
-                        self.status_message = format!("{} started streaming block {}...", peer_name, block_id);
-                    }
-                    CollabMessage::StreamChunk {
-                        peer_id,
-                        block_id,
-                        chunk,
-                    } => {
-                        let peer_name = self
-                            .peers
-                            .get(&peer_id)
-                            .map(|p| p.name.as_str())
-                            .unwrap_or("Peer");
-                        let mut acc = self.remote_streams.remove(&block_id).unwrap_or_default();
-                        Runner::append_stream_chunk(&mut self.editor.buffer, &block_id, &chunk, &mut acc);
-                        self.remote_streams.insert(block_id.clone(), acc);
-
-                        if let Some(b) = Runner::find_code_block_by_id(&self.editor.buffer, &block_id)
-                            && let Some(out) = Runner::find_following_output_block(&self.editor.buffer, b.end_fence_line)
-                        {
-                            self.editor.buffer.cursor_line = out.end_line;
-                        }
-
-                        self.status_message = format!("{} is streaming block {}...", peer_name, block_id);
-                    }
-                    CollabMessage::StreamEnd {
-                        peer_id,
-                        block_id,
-                        exit_code,
-                    } => {
-                        let peer_name = self
-                            .peers
-                            .get(&peer_id)
-                            .map(|p| p.name.as_str())
-                            .unwrap_or("Peer");
-                        let acc = self.remote_streams.remove(&block_id).unwrap_or_default();
-                        let status = if exit_code == 130 {
-                            crate::runner::OutputStatus::Interrupted
-                        } else {
-                            crate::runner::OutputStatus::Exit(exit_code)
-                        };
-                        let processed = crate::ansi::process_terminal_stream(&acc);
-                        Runner::apply_streaming_status(&mut self.editor.buffer, &block_id, status, &processed);
-                        self.status_message =
-                            format!("Block {} finished [exit: {}] by {}", block_id, exit_code, peer_name);
-                    }
-                    CollabMessage::ParamUpdate {
-                        peer_id,
-                        param_name,
-                        value,
-                    } => {
-                        let peer_name = self
-                            .peers
-                            .get(&peer_id)
-                            .map(|p| p.name.clone())
-                            .unwrap_or_else(|| "Peer".to_string());
-                        self.set_param_from_remote(&param_name, &value);
-                        self.status_message =
-                            format!("Parameter '{}' set to '{}' by {}", param_name, value, peer_name);
-                    }
-                    CollabMessage::ApprovalRequest { peer_id, block_id, command_preview: _, required_approvals } => {
-                        let peer_name = self.peers.get(&peer_id).map(|p| p.name.as_str()).unwrap_or("Peer");
-                        self.status_message = format!("Peer {} requested approval for block {} (needs {}). Casting vote...", peer_name, block_id, required_approvals);
-                        if let Some(client) = &self.collab_client {
-                            client.send_approval_vote(block_id.clone());
-                        }
-                    }
-                    CollabMessage::ApprovalVote { peer_id: _, block_id, approver_name } => {
-                        self.status_message = format!("Approval vote received from {} for block {}", approver_name, block_id);
-                    }
-                    CollabMessage::ApprovalStatus { block_id, approvals_count, required_approvals, approved } => {
-                        if approved {
-                            self.status_message = format!("Consensus approval reached ({}/{})! Dispatching block {}...", approvals_count, required_approvals, block_id);
-                            self.execute_block_by_id(&block_id);
-                        } else {
-                            self.status_message = format!("Block {} approvals: {}/{}", block_id, approvals_count, required_approvals);
-                        }
-                    }
-                    _ => {}
+                    self.refresh_params_and_tables();
+                    self.status_message = "Document synchronized with room".to_string();
                 }
+                CollabMessage::PeerJoined { peer } => {
+                    let name = peer.name.clone();
+                    self.peers.insert(peer.id.clone(), peer);
+                    self.status_message = format!("Peer {} joined", name);
+                }
+                CollabMessage::PeerLeft { peer_id } => {
+                    if let Some(p) = self.peers.remove(&peer_id) {
+                        self.status_message = format!("Peer {} left the room", p.name);
+                    }
+                }
+                CollabMessage::InsertChar { peer_id, pos, char } => {
+                    self.editor.buffer.apply_remote_insert(pos, char);
+                    if let Some(peer) = self.peers.get_mut(&peer_id) {
+                        let (l, c) = self.editor.buffer.char_to_line_col(pos + 1);
+                        peer.cursor_line = l;
+                        peer.cursor_col = c;
+                    }
+                }
+                CollabMessage::DeleteChar { peer_id, pos } => {
+                    self.editor.buffer.apply_remote_delete(pos);
+                    if let Some(peer) = self.peers.get_mut(&peer_id) {
+                        let (l, c) = self.editor.buffer.char_to_line_col(pos);
+                        peer.cursor_line = l;
+                        peer.cursor_col = c;
+                    }
+                }
+                CollabMessage::CursorMove { peer_id, line, col } => {
+                    if let Some(peer) = self.peers.get_mut(&peer_id) {
+                        peer.cursor_line = line;
+                        peer.cursor_col = col;
+                    }
+                }
+                CollabMessage::RunBlock { peer_id, block_id } => {
+                    let peer_name = self
+                        .peers
+                        .get(&peer_id)
+                        .map(|p| p.name.as_str())
+                        .unwrap_or("Peer");
+                    self.status_message = format!("{} is running block {}...", peer_name, block_id);
+                }
+                CollabMessage::OutputUpdate {
+                    peer_id,
+                    block_id,
+                    text,
+                    exit_code,
+                } => {
+                    let peer_name = self
+                        .peers
+                        .get(&peer_id)
+                        .map(|p| p.name.as_str())
+                        .unwrap_or("Peer");
+                    Runner::apply_output_by_id(
+                        &mut self.editor.buffer,
+                        &block_id,
+                        &text,
+                        exit_code,
+                    );
+                    self.status_message =
+                        format!("Output updated [exit: {}] by {}", exit_code, peer_name);
+                }
+                CollabMessage::ToggleTask {
+                    peer_id,
+                    line,
+                    checked,
+                } => {
+                    let peer_name = self
+                        .peers
+                        .get(&peer_id)
+                        .map(|p| p.name.as_str())
+                        .unwrap_or("Peer");
+                    if self.editor.buffer.set_task_checked(line, checked) {
+                        self.status_message = format!(
+                            "Task {} by {}",
+                            if checked { "completed" } else { "reopened" },
+                            peer_name
+                        );
+                    }
+                }
+                CollabMessage::StreamStart { peer_id, block_id } => {
+                    let peer_name = self
+                        .peers
+                        .get(&peer_id)
+                        .map(|p| p.name.as_str())
+                        .unwrap_or("Peer");
+                    self.remote_streams.insert(block_id.clone(), String::new());
+                    Runner::apply_streaming_status(
+                        &mut self.editor.buffer,
+                        &block_id,
+                        crate::runner::OutputStatus::Running,
+                        "",
+                    );
+                    self.status_message =
+                        format!("{} started streaming block {}...", peer_name, block_id);
+                }
+                CollabMessage::StreamChunk {
+                    peer_id,
+                    block_id,
+                    chunk,
+                } => {
+                    let peer_name = self
+                        .peers
+                        .get(&peer_id)
+                        .map(|p| p.name.as_str())
+                        .unwrap_or("Peer");
+                    let mut acc = self.remote_streams.remove(&block_id).unwrap_or_default();
+                    Runner::append_stream_chunk(
+                        &mut self.editor.buffer,
+                        &block_id,
+                        &chunk,
+                        &mut acc,
+                    );
+                    self.remote_streams.insert(block_id.clone(), acc);
+
+                    if let Some(b) = Runner::find_code_block_by_id(&self.editor.buffer, &block_id)
+                        && let Some(out) = Runner::find_following_output_block(
+                            &self.editor.buffer,
+                            b.end_fence_line,
+                        )
+                    {
+                        self.editor.buffer.cursor_line = out.end_line;
+                    }
+
+                    self.status_message =
+                        format!("{} is streaming block {}...", peer_name, block_id);
+                }
+                CollabMessage::StreamEnd {
+                    peer_id,
+                    block_id,
+                    exit_code,
+                } => {
+                    let peer_name = self
+                        .peers
+                        .get(&peer_id)
+                        .map(|p| p.name.as_str())
+                        .unwrap_or("Peer");
+                    let acc = self.remote_streams.remove(&block_id).unwrap_or_default();
+                    let status = if exit_code == 130 {
+                        crate::runner::OutputStatus::Interrupted
+                    } else {
+                        crate::runner::OutputStatus::Exit(exit_code)
+                    };
+                    let processed = crate::ansi::process_terminal_stream(&acc);
+                    Runner::apply_streaming_status(
+                        &mut self.editor.buffer,
+                        &block_id,
+                        status,
+                        &processed,
+                    );
+                    self.status_message = format!(
+                        "Block {} finished [exit: {}] by {}",
+                        block_id, exit_code, peer_name
+                    );
+                }
+                CollabMessage::ParamUpdate {
+                    peer_id,
+                    param_name,
+                    value,
+                } => {
+                    let peer_name = self
+                        .peers
+                        .get(&peer_id)
+                        .map(|p| p.name.clone())
+                        .unwrap_or_else(|| "Peer".to_string());
+                    self.set_param_from_remote(&param_name, &value);
+                    self.status_message = format!(
+                        "Parameter '{}' set to '{}' by {}",
+                        param_name, value, peer_name
+                    );
+                }
+                CollabMessage::ApprovalRequest {
+                    peer_id,
+                    block_id,
+                    command_preview: _,
+                    required_approvals,
+                } => {
+                    let peer_name = self
+                        .peers
+                        .get(&peer_id)
+                        .map(|p| p.name.as_str())
+                        .unwrap_or("Peer");
+                    self.status_message = format!(
+                        "Peer {} requested approval for block {} (needs {}). Casting vote...",
+                        peer_name, block_id, required_approvals
+                    );
+                    if let Some(client) = &self.collab_client {
+                        client.send_approval_vote(block_id.clone());
+                    }
+                }
+                CollabMessage::ApprovalVote {
+                    peer_id: _,
+                    block_id,
+                    approver_name,
+                } => {
+                    self.status_message = format!(
+                        "Approval vote received from {} for block {}",
+                        approver_name, block_id
+                    );
+                }
+                CollabMessage::ApprovalStatus {
+                    block_id,
+                    approvals_count,
+                    required_approvals,
+                    approved,
+                } => {
+                    if approved {
+                        self.status_message = format!(
+                            "Consensus approval reached ({}/{})! Dispatching block {}...",
+                            approvals_count, required_approvals, block_id
+                        );
+                        self.execute_block_by_id(&block_id);
+                    } else {
+                        self.status_message = format!(
+                            "Block {} approvals: {}/{}",
+                            block_id, approvals_count, required_approvals
+                        );
+                    }
+                }
+                _ => {}
             }
+        }
     }
 
     pub fn handle_key_event(&mut self, key: KeyEvent) {
@@ -813,28 +934,28 @@ impl App {
                         PendingAction::OpenDocument { path, target_line } => {
                             self.force_open_document(&path);
                             if let Some(line) = target_line {
-                                self.editor.buffer.cursor_line = line.min(self.editor.line_count().saturating_sub(1));
+                                self.editor.buffer.cursor_line =
+                                    line.min(self.editor.line_count().saturating_sub(1));
                                 self.editor.buffer.cursor_col = 0;
                             }
                             self.mode = AppMode::Normal;
                         }
                     }
                 }
-                KeyCode::Char('d') | KeyCode::Char('D') => {
-                    match pending_action {
-                        PendingAction::Quit => {
-                            self.should_quit = true;
-                        }
-                        PendingAction::OpenDocument { path, target_line } => {
-                            self.force_open_document(&path);
-                            if let Some(line) = target_line {
-                                self.editor.buffer.cursor_line = line.min(self.editor.line_count().saturating_sub(1));
-                                self.editor.buffer.cursor_col = 0;
-                            }
-                            self.mode = AppMode::Normal;
-                        }
+                KeyCode::Char('d') | KeyCode::Char('D') => match pending_action {
+                    PendingAction::Quit => {
+                        self.should_quit = true;
                     }
-                }
+                    PendingAction::OpenDocument { path, target_line } => {
+                        self.force_open_document(&path);
+                        if let Some(line) = target_line {
+                            self.editor.buffer.cursor_line =
+                                line.min(self.editor.line_count().saturating_sub(1));
+                            self.editor.buffer.cursor_col = 0;
+                        }
+                        self.mode = AppMode::Normal;
+                    }
+                },
                 KeyCode::Char('c') | KeyCode::Char('C') | KeyCode::Esc => {
                     self.status_message = "Action cancelled".to_string();
                     self.mode = AppMode::Normal;
@@ -915,7 +1036,10 @@ impl App {
                     if let Some(ref kw) = keyword_required
                         && !keyword_input.trim().eq_ignore_ascii_case(kw.trim())
                     {
-                        self.status_message = format!("Confirmation keyword mismatch! Please type '{}' to confirm.", kw);
+                        self.status_message = format!(
+                            "Confirmation keyword mismatch! Please type '{}' to confirm.",
+                            kw
+                        );
                         return;
                     }
                     self.mode = AppMode::Normal;
@@ -1009,25 +1133,37 @@ impl App {
             mut row_index,
         } = self.mode.clone()
         {
-            let total_rows = self.table_states.get(&block_id).map(|t| t.rows.len()).unwrap_or(0);
+            let total_rows = self
+                .table_states
+                .get(&block_id)
+                .map(|t| t.rows.len())
+                .unwrap_or(0);
 
             match key.code {
                 KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
                     self.mode = AppMode::Normal;
                 }
-                KeyCode::Down | KeyCode::Char('j') if total_rows > 0 && row_index + 1 < total_rows => {
+                KeyCode::Down | KeyCode::Char('j')
+                    if total_rows > 0 && row_index + 1 < total_rows =>
+                {
                     row_index += 1;
                     if let Some(tbl) = self.table_states.get_mut(&block_id) {
                         tbl.selected_row = row_index;
                     }
-                    self.mode = AppMode::TableInspectModal { block_id, row_index };
+                    self.mode = AppMode::TableInspectModal {
+                        block_id,
+                        row_index,
+                    };
                 }
                 KeyCode::Up | KeyCode::Char('k') if row_index > 0 => {
                     row_index -= 1;
                     if let Some(tbl) = self.table_states.get_mut(&block_id) {
                         tbl.selected_row = row_index;
                     }
-                    self.mode = AppMode::TableInspectModal { block_id, row_index };
+                    self.mode = AppMode::TableInspectModal {
+                        block_id,
+                        row_index,
+                    };
                 }
                 _ => {}
             }
@@ -1040,8 +1176,7 @@ impl App {
             && ((key.modifiers.contains(KeyModifiers::SHIFT)
                 && (key.code == KeyCode::Char('r') || key.code == KeyCode::Char('R')))
                 || key.code == KeyCode::Char('R'));
-        if is_ctrl_shift_r || key.code == KeyCode::F(5)
-        {
+        if is_ctrl_shift_r || key.code == KeyCode::F(5) {
             self.trigger_run_all_blocks();
             return;
         }
@@ -1051,7 +1186,10 @@ impl App {
             match key.code {
                 KeyCode::Char('q') => {
                     if self.editor.is_dirty() {
-                        let doc_name = self.editor.file_path.as_ref()
+                        let doc_name = self
+                            .editor
+                            .file_path
+                            .as_ref()
                             .and_then(|p| p.file_name())
                             .map(|n| n.to_string_lossy().to_string())
                             .unwrap_or_else(|| "current document".to_string());
@@ -1070,7 +1208,8 @@ impl App {
                             let _ = cancel.send(());
                         }
                         self.is_running_block = false;
-                        let final_text = crate::ansi::process_terminal_stream(&cmd.accumulated_output);
+                        let final_text =
+                            crate::ansi::process_terminal_stream(&cmd.accumulated_output);
                         Runner::apply_streaming_status(
                             &mut self.editor.buffer,
                             &cmd.block_id,
@@ -1089,7 +1228,8 @@ impl App {
                 }
                 KeyCode::Char('k') => {
                     self.mode = AppMode::CommandPalette;
-                    self.palette.reset(&self.workspace, self.editor.file_path.as_ref());
+                    self.palette
+                        .reset(&self.workspace, self.editor.file_path.as_ref());
                     return;
                 }
                 KeyCode::Char('b') => {
@@ -1183,17 +1323,25 @@ impl App {
                 } else {
                     let line = self.editor.buffer.cursor_line;
                     let col = self.editor.buffer.cursor_col;
-                    if let Some(next_param) = crate::form::FormParser::find_next(&self.editor.buffer, line, col) {
+                    if let Some(next_param) =
+                        crate::form::FormParser::find_next(&self.editor.buffer, line, col)
+                    {
                         self.editor.buffer.cursor_line = next_param.line;
                         self.editor.buffer.cursor_col = next_param.start_col;
-                        self.status_message = format!("Focused parameter '{}' ({})", next_param.name, next_param.value);
+                        self.status_message = format!(
+                            "Focused parameter '{}' ({})",
+                            next_param.name, next_param.value
+                        );
                     } else {
                         let pos = self.editor.buffer.char_index_at_cursor();
                         self.editor.buffer.insert_str("  ");
                         if let Some(client) = &self.collab_client {
                             client.send_insert_char(pos, ' ');
                             client.send_insert_char(pos + 1, ' ');
-                            client.send_cursor_move(self.editor.buffer.cursor_line, self.editor.buffer.cursor_col);
+                            client.send_cursor_move(
+                                self.editor.buffer.cursor_line,
+                                self.editor.buffer.cursor_col,
+                            );
                         }
                     }
                 }
@@ -1203,10 +1351,15 @@ impl App {
                 if self.focus == FocusPane::Editor {
                     let line = self.editor.buffer.cursor_line;
                     let col = self.editor.buffer.cursor_col;
-                    if let Some(prev_param) = crate::form::FormParser::find_prev(&self.editor.buffer, line, col) {
+                    if let Some(prev_param) =
+                        crate::form::FormParser::find_prev(&self.editor.buffer, line, col)
+                    {
                         self.editor.buffer.cursor_line = prev_param.line;
                         self.editor.buffer.cursor_col = prev_param.start_col;
-                        self.status_message = format!("Focused parameter '{}' ({})", prev_param.name, prev_param.value);
+                        self.status_message = format!(
+                            "Focused parameter '{}' ({})",
+                            prev_param.name, prev_param.value
+                        );
                     }
                 }
                 return;
@@ -1254,13 +1407,14 @@ impl App {
         match key.code {
             KeyCode::Left | KeyCode::Char('[') => {
                 let line = self.editor.buffer.cursor_line;
-                if let Some(out_span) = Runner::find_enclosing_output_block(&self.editor.buffer, line) {
+                if let Some(out_span) =
+                    Runner::find_enclosing_output_block(&self.editor.buffer, line)
+                {
                     let blocks = Runner::all_code_blocks(&self.editor.buffer);
                     if let Some(block) = blocks.iter().find(|b| {
                         b.end_fence_line + 1 == out_span.start_line
                             || b.end_fence_line + 2 == out_span.start_line
-                    })
-                        && let Some(fleet) = self.fleet_states.get_mut(&block.id)
+                    }) && let Some(fleet) = self.fleet_states.get_mut(&block.id)
                     {
                         if fleet.selected_tab > 0 {
                             fleet.selected_tab -= 1;
@@ -1272,7 +1426,11 @@ impl App {
                             block.name.as_deref().unwrap_or(&block.id),
                             fleet.selected_tab + 1,
                             fleet.hosts.len(),
-                            fleet.hosts.get(fleet.selected_tab).map(|h| h.host.as_str()).unwrap_or("")
+                            fleet
+                                .hosts
+                                .get(fleet.selected_tab)
+                                .map(|h| h.host.as_str())
+                                .unwrap_or("")
                         );
                         if let Some(name) = &block.name {
                             let cloned = fleet.clone();
@@ -1298,13 +1456,14 @@ impl App {
             }
             KeyCode::Right | KeyCode::Char(']') => {
                 let line = self.editor.buffer.cursor_line;
-                if let Some(out_span) = Runner::find_enclosing_output_block(&self.editor.buffer, line) {
+                if let Some(out_span) =
+                    Runner::find_enclosing_output_block(&self.editor.buffer, line)
+                {
                     let blocks = Runner::all_code_blocks(&self.editor.buffer);
                     if let Some(block) = blocks.iter().find(|b| {
                         b.end_fence_line + 1 == out_span.start_line
                             || b.end_fence_line + 2 == out_span.start_line
-                    })
-                        && let Some(fleet) = self.fleet_states.get_mut(&block.id)
+                    }) && let Some(fleet) = self.fleet_states.get_mut(&block.id)
                     {
                         if !fleet.hosts.is_empty() {
                             fleet.selected_tab = (fleet.selected_tab + 1) % fleet.hosts.len();
@@ -1314,7 +1473,11 @@ impl App {
                             block.name.as_deref().unwrap_or(&block.id),
                             fleet.selected_tab + 1,
                             fleet.hosts.len(),
-                            fleet.hosts.get(fleet.selected_tab).map(|h| h.host.as_str()).unwrap_or("")
+                            fleet
+                                .hosts
+                                .get(fleet.selected_tab)
+                                .map(|h| h.host.as_str())
+                                .unwrap_or("")
                         );
                         if let Some(name) = &block.name {
                             let cloned = fleet.clone();
@@ -1340,13 +1503,14 @@ impl App {
             }
             KeyCode::Up => {
                 let line = self.editor.buffer.cursor_line;
-                if let Some(out_span) = Runner::find_enclosing_output_block(&self.editor.buffer, line) {
+                if let Some(out_span) =
+                    Runner::find_enclosing_output_block(&self.editor.buffer, line)
+                {
                     let blocks = Runner::all_code_blocks(&self.editor.buffer);
                     if let Some(block) = blocks.iter().find(|b| {
                         b.end_fence_line + 1 == out_span.start_line
                             || b.end_fence_line + 2 == out_span.start_line
-                    })
-                        && let Some(tbl) = self.table_states.get_mut(&block.id)
+                    }) && let Some(tbl) = self.table_states.get_mut(&block.id)
                     {
                         tbl.select_prev_row();
                         let r_idx = tbl.selected_row;
@@ -1368,13 +1532,14 @@ impl App {
             }
             KeyCode::Down => {
                 let line = self.editor.buffer.cursor_line;
-                if let Some(out_span) = Runner::find_enclosing_output_block(&self.editor.buffer, line) {
+                if let Some(out_span) =
+                    Runner::find_enclosing_output_block(&self.editor.buffer, line)
+                {
                     let blocks = Runner::all_code_blocks(&self.editor.buffer);
                     if let Some(block) = blocks.iter().find(|b| {
                         b.end_fence_line + 1 == out_span.start_line
                             || b.end_fence_line + 2 == out_span.start_line
-                    })
-                        && let Some(tbl) = self.table_states.get_mut(&block.id)
+                    }) && let Some(tbl) = self.table_states.get_mut(&block.id)
                     {
                         tbl.select_next_row();
                         let r_idx = tbl.selected_row;
@@ -1433,11 +1598,15 @@ impl App {
                 let col = self.editor.buffer.cursor_col;
 
                 // 1. Check if cursor is on a parameterized form widget
-                if let Some(param) = crate::form::FormParser::find_at_cursor(&self.editor.buffer, line, col) {
+                if let Some(param) =
+                    crate::form::FormParser::find_at_cursor(&self.editor.buffer, line, col)
+                {
                     match param.param_type {
                         crate::form::FormParamType::Toggle => {
                             if let Some((name, new_val)) =
-                                crate::form::FormParser::toggle_or_cycle_at_cursor(&mut self.editor.buffer)
+                                crate::form::FormParser::toggle_or_cycle_at_cursor(
+                                    &mut self.editor.buffer,
+                                )
                             {
                                 self.set_param(&name, &new_val);
                                 self.status_message = format!("Toggled {}: {}", name, new_val);
@@ -1446,7 +1615,9 @@ impl App {
                         }
                         crate::form::FormParamType::Select { .. } => {
                             if let Some((name, new_val)) =
-                                crate::form::FormParser::toggle_or_cycle_at_cursor(&mut self.editor.buffer)
+                                crate::form::FormParser::toggle_or_cycle_at_cursor(
+                                    &mut self.editor.buffer,
+                                )
                             {
                                 self.set_param(&name, &new_val);
                                 self.status_message = format!("Selected {}: {}", name, new_val);
@@ -1460,7 +1631,10 @@ impl App {
                                 param_line: param.line,
                                 start_col: param.start_col,
                                 end_col: param.end_col,
-                                is_secret: matches!(param.param_type, crate::form::FormParamType::Secret),
+                                is_secret: matches!(
+                                    param.param_type,
+                                    crate::form::FormParamType::Secret
+                                ),
                             };
                             return;
                         }
@@ -1468,13 +1642,14 @@ impl App {
                 }
 
                 // 2. Check if cursor is inside a table output block -> open inspection modal
-                if let Some(out_span) = Runner::find_enclosing_output_block(&self.editor.buffer, line) {
+                if let Some(out_span) =
+                    Runner::find_enclosing_output_block(&self.editor.buffer, line)
+                {
                     let blocks = Runner::all_code_blocks(&self.editor.buffer);
                     if let Some(block) = blocks.iter().find(|b| {
                         b.end_fence_line + 1 == out_span.start_line
                             || b.end_fence_line + 2 == out_span.start_line
-                    })
-                        && let Some(tbl) = self.table_states.get(&block.id)
+                    }) && let Some(tbl) = self.table_states.get(&block.id)
                     {
                         self.mode = AppMode::TableInspectModal {
                             block_id: block.id.clone(),
@@ -1513,11 +1688,15 @@ impl App {
                 // Check parameter toggling or cycling on Space
                 let line = self.editor.buffer.cursor_line;
                 let col = self.editor.buffer.cursor_col;
-                if let Some(param) = crate::form::FormParser::find_at_cursor(&self.editor.buffer, line, col) {
+                if let Some(param) =
+                    crate::form::FormParser::find_at_cursor(&self.editor.buffer, line, col)
+                {
                     match param.param_type {
                         crate::form::FormParamType::Toggle => {
                             if let Some((name, new_val)) =
-                                crate::form::FormParser::toggle_or_cycle_at_cursor(&mut self.editor.buffer)
+                                crate::form::FormParser::toggle_or_cycle_at_cursor(
+                                    &mut self.editor.buffer,
+                                )
                             {
                                 self.set_param(&name, &new_val);
                                 self.status_message = format!("Toggled {}: {}", name, new_val);
@@ -1526,7 +1705,9 @@ impl App {
                         }
                         crate::form::FormParamType::Select { .. } => {
                             if let Some((name, new_val)) =
-                                crate::form::FormParser::toggle_or_cycle_at_cursor(&mut self.editor.buffer)
+                                crate::form::FormParser::toggle_or_cycle_at_cursor(
+                                    &mut self.editor.buffer,
+                                )
                             {
                                 self.set_param(&name, &new_val);
                                 self.status_message = format!("Selected {}: {}", name, new_val);
@@ -1540,7 +1721,10 @@ impl App {
                                 param_line: param.line,
                                 start_col: param.start_col,
                                 end_col: param.end_col,
-                                is_secret: matches!(param.param_type, crate::form::FormParamType::Secret),
+                                is_secret: matches!(
+                                    param.param_type,
+                                    crate::form::FormParamType::Secret
+                                ),
                             };
                             return;
                         }
@@ -1564,10 +1748,16 @@ impl App {
         }
 
         // Broadcast cursor movement if changed
-        if (self.editor.buffer.cursor_line, self.editor.buffer.cursor_col) != (old_line, old_col)
+        if (
+            self.editor.buffer.cursor_line,
+            self.editor.buffer.cursor_col,
+        ) != (old_line, old_col)
             && let Some(client) = &self.collab_client
         {
-            client.send_cursor_move(self.editor.buffer.cursor_line, self.editor.buffer.cursor_col);
+            client.send_cursor_move(
+                self.editor.buffer.cursor_line,
+                self.editor.buffer.cursor_col,
+            );
         }
     }
 
@@ -1583,7 +1773,8 @@ impl App {
                 self.palette.move_down();
             }
             KeyCode::Backspace => {
-                self.palette.backspace(&self.workspace, self.editor.file_path.as_ref());
+                self.palette
+                    .backspace(&self.workspace, self.editor.file_path.as_ref());
             }
             KeyCode::Enter => {
                 if let Some(item) = self.palette.selected_item().cloned() {
@@ -1591,7 +1782,8 @@ impl App {
                 }
             }
             KeyCode::Char(c) => {
-                self.palette.insert_char(c, &self.workspace, self.editor.file_path.as_ref());
+                self.palette
+                    .insert_char(c, &self.workspace, self.editor.file_path.as_ref());
             }
             _ => {}
         }
@@ -1680,7 +1872,10 @@ impl App {
             }
             PaletteAction::Quit => {
                 if self.editor.is_dirty() {
-                    let doc_name = self.editor.file_path.as_ref()
+                    let doc_name = self
+                        .editor
+                        .file_path
+                        .as_ref()
                         .and_then(|p| p.file_name())
                         .map(|n| n.to_string_lossy().to_string())
                         .unwrap_or_else(|| "current document".to_string());
@@ -1706,7 +1901,9 @@ impl App {
                 }
             }
             KeyCode::Down => {
-                if !self.search_matches.is_empty() && self.search_selected_index + 1 < self.search_matches.len() {
+                if !self.search_matches.is_empty()
+                    && self.search_selected_index + 1 < self.search_matches.len()
+                {
                     self.search_selected_index += 1;
                 }
             }
@@ -1791,19 +1988,20 @@ impl App {
                     .effective_confirm_prompt()
                     .unwrap_or_else(|| "Confirm execution?".to_string());
                 let sec = block.analyze_security();
-                let keyword_required = if block.blast_radius.as_deref() == Some("critical") || block.danger {
-                    if let Some(t) = &block.target {
-                        if let Some(group) = t.strip_prefix('@') {
-                            Some(group.to_string())
+                let keyword_required =
+                    if block.blast_radius.as_deref() == Some("critical") || block.danger {
+                        if let Some(t) = &block.target {
+                            if let Some(group) = t.strip_prefix('@') {
+                                Some(group.to_string())
+                            } else {
+                                Some("CONFIRM".to_string())
+                            }
                         } else {
                             Some("CONFIRM".to_string())
                         }
                     } else {
-                        Some("CONFIRM".to_string())
-                    }
-                } else {
-                    None
-                };
+                        None
+                    };
 
                 let target_hosts = if let Some(t) = &block.target {
                     vec![t.clone()]
@@ -1854,16 +2052,35 @@ impl App {
 
         let initial_outputs = Runner::collect_existing_outputs(&self.editor.buffer);
         self.refresh_params_and_tables();
-        let interpolated_code = Runner::interpolate_variables_with_context(&block.code, &initial_outputs, &self.params, &self.table_states);
+        let interpolated_code = Runner::interpolate_variables_with_context(
+            &block.code,
+            &initial_outputs,
+            &self.params,
+            &self.table_states,
+        );
         let mut block_to_run = block.clone();
         block_to_run.code = interpolated_code;
         if let Some(t) = &block.target {
-            block_to_run.target = Some(Runner::interpolate_variables_with_context(t, &initial_outputs, &self.params, &self.table_states));
+            block_to_run.target = Some(Runner::interpolate_variables_with_context(
+                t,
+                &initial_outputs,
+                &self.params,
+                &self.table_states,
+            ));
         }
         if let Some(p) = &block.proxy {
-            block_to_run.proxy = Some(Runner::interpolate_variables_with_context(p, &initial_outputs, &self.params, &self.table_states));
+            block_to_run.proxy = Some(Runner::interpolate_variables_with_context(
+                p,
+                &initial_outputs,
+                &self.params,
+                &self.table_states,
+            ));
         }
-        let env_vars = Runner::build_environment_variables_with_context(&initial_outputs, &self.params, &self.table_states);
+        let env_vars = Runner::build_environment_variables_with_context(
+            &initial_outputs,
+            &self.params,
+            &self.table_states,
+        );
 
         let root_dir = self.workspace.root_dir.clone();
         let tx = self.event_tx.clone();
@@ -1900,7 +2117,17 @@ impl App {
         };
 
         tokio::spawn(async move {
-            match Runner::execute_streaming_with_pool(&block_to_run, &root_dir, &env_vars, &pool_c, Some(&buf_c), on_chunk, on_end).await {
+            match Runner::execute_streaming_with_pool(
+                &block_to_run,
+                &root_dir,
+                &env_vars,
+                &pool_c,
+                Some(&buf_c),
+                on_chunk,
+                on_end,
+            )
+            .await
+            {
                 Ok(handle) => {
                     tokio::spawn(async move {
                         while let Some(bytes) = stdin_pipe_rx.recv().await {
@@ -1995,17 +2222,27 @@ impl App {
                     total,
                 });
 
-                let interpolated_code = Runner::interpolate_variables_with_context(&block.code, &outputs, &params, &tables);
+                let interpolated_code = Runner::interpolate_variables_with_context(
+                    &block.code,
+                    &outputs,
+                    &params,
+                    &tables,
+                );
                 let mut block_to_run = block.clone();
                 block_to_run.code = interpolated_code;
                 if let Some(t) = &block.target {
-                    block_to_run.target = Some(Runner::interpolate_variables_with_context(t, &outputs, &params, &tables));
+                    block_to_run.target = Some(Runner::interpolate_variables_with_context(
+                        t, &outputs, &params, &tables,
+                    ));
                 }
                 if let Some(p) = &block.proxy {
-                    block_to_run.proxy = Some(Runner::interpolate_variables_with_context(p, &outputs, &params, &tables));
+                    block_to_run.proxy = Some(Runner::interpolate_variables_with_context(
+                        p, &outputs, &params, &tables,
+                    ));
                 }
 
-                let env_vars = Runner::build_environment_variables_with_context(&outputs, &params, &tables);
+                let env_vars =
+                    Runner::build_environment_variables_with_context(&outputs, &params, &tables);
 
                 let tx_chunk = tx.clone();
                 let b_id = block.id.clone();
@@ -2026,7 +2263,8 @@ impl App {
                     move |result| {
                         let _ = res_tx.send(result);
                     },
-                ).await;
+                )
+                .await;
 
                 match handle_res {
                     Ok(_handle) => {
@@ -2084,7 +2322,11 @@ impl App {
                         }
                     }
                     Err(e) => {
-                        let _ = tx.send(AppEvent::StatusMessage(format!("Step {} failed to spawn: {}", i + 1, e)));
+                        let _ = tx.send(AppEvent::StatusMessage(format!(
+                            "Step {} failed to spawn: {}",
+                            i + 1,
+                            e
+                        )));
                         let _ = tx.send(AppEvent::PlaybookHalted {
                             block_id: block.id.clone(),
                             block_name: block.name.clone(),

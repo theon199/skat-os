@@ -1,7 +1,7 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph};
-use ratatui::Frame;
 
 use crate::app::App;
 use crate::ui::theme::Theme;
@@ -40,9 +40,10 @@ impl PaletteView {
 
         // 1. Input Box
         let query_text = format!(" > {}_", app.palette.query);
-        let input_box = Paragraph::new(Line::from(vec![
-            Span::styled(query_text, Theme::PALETTE_INPUT),
-        ]))
+        let input_box = Paragraph::new(Line::from(vec![Span::styled(
+            query_text,
+            Theme::PALETTE_INPUT,
+        )]))
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -89,12 +90,10 @@ impl PaletteView {
         frame.render_widget(list, chunks[1]);
 
         // 3. Footer
-        let footer = Paragraph::new(Line::from(vec![
-            Span::styled(
-                " [↑/↓] Select  [Enter] Execute  [Esc] Close ",
-                Theme::TITLE_INACTIVE,
-            ),
-        ]))
+        let footer = Paragraph::new(Line::from(vec![Span::styled(
+            " [↑/↓] Select  [Enter] Execute  [Esc] Close ",
+            Theme::TITLE_INACTIVE,
+        )]))
         .alignment(ratatui::layout::Alignment::Center);
         frame.render_widget(footer, chunks[2]);
     }

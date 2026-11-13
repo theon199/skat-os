@@ -131,9 +131,13 @@ curl -u admin:$DB_PASS https://api.prod.internal/v1
     assert!(interpolated.contains("export DB_PASS=\"SuperSecretP@ssword!\""));
 
     // Verify masking on output
-    let output = "Connected with password SuperSecretP@ssword!, generated key AKIAIOSFODNN7EXAMPLE.";
+    let output =
+        "Connected with password SuperSecretP@ssword!, generated key AKIAIOSFODNN7EXAMPLE.";
     let masked = vault.mask(output);
-    assert_eq!(masked, "Connected with password [REDACTED], generated key [REDACTED].");
+    assert_eq!(
+        masked,
+        "Connected with password [REDACTED], generated key [REDACTED]."
+    );
     assert!(!masked.contains("SuperSecretP@ssword!"));
     assert!(!masked.contains("AKIAIOSFODNN7EXAMPLE"));
 }
@@ -216,24 +220,45 @@ fn test_secret_form_parameter_masking() {
     // Updating secret parameter in buffer
     let mut buffer = TextBuffer::from_str(line);
     FormParser::update_param_in_buffer(&mut buffer, "API_KEY", "new_secret_key");
-    assert!(buffer.get_text().contains("{{param:secret:API_KEY=new_secret_key}}"));
+    assert!(
+        buffer
+            .get_text()
+            .contains("{{param:secret:API_KEY=new_secret_key}}")
+    );
 }
 
 #[test]
 fn test_frontmatter_encrypted_secrets_chacha20poly1305() {
     let mut secrets = HashMap::new();
-    secrets.insert("PROD_DATABASE_KEY".to_string(), "CorrectHorseBatteryStaple".to_string());
-    secrets.insert("STRIPE_SECRET".to_string(), "sk_live_998877665544".to_string());
+    secrets.insert(
+        "PROD_DATABASE_KEY".to_string(),
+        "CorrectHorseBatteryStaple".to_string(),
+    );
+    secrets.insert(
+        "STRIPE_SECRET".to_string(),
+        "sk_live_998877665544".to_string(),
+    );
 
     let passphrase = "my-secure-cluster-passphrase";
-    let (nonce_hex, cipher_hex) = SecretVault::encrypt_secrets_payload(&secrets, passphrase).unwrap();
+    let (nonce_hex, cipher_hex) =
+        SecretVault::encrypt_secrets_payload(&secrets, passphrase).unwrap();
 
-    let decrypted = SecretVault::decrypt_secrets_payload(&nonce_hex, &cipher_hex, passphrase).unwrap();
-    assert_eq!(decrypted.get("PROD_DATABASE_KEY"), Some(&"CorrectHorseBatteryStaple".to_string()));
-    assert_eq!(decrypted.get("STRIPE_SECRET"), Some(&"sk_live_998877665544".to_string()));
+    let decrypted =
+        SecretVault::decrypt_secrets_payload(&nonce_hex, &cipher_hex, passphrase).unwrap();
+    assert_eq!(
+        decrypted.get("PROD_DATABASE_KEY"),
+        Some(&"CorrectHorseBatteryStaple".to_string())
+    );
+    assert_eq!(
+        decrypted.get("STRIPE_SECRET"),
+        Some(&"sk_live_998877665544".to_string())
+    );
 
     // Invalid passphrase must fail authentication
-    assert!(SecretVault::decrypt_secrets_payload(&nonce_hex, &cipher_hex, "invalid-passphrase").is_err());
+    assert!(
+        SecretVault::decrypt_secrets_payload(&nonce_hex, &cipher_hex, "invalid-passphrase")
+            .is_err()
+    );
 }
 
 #[test]
@@ -310,14 +335,22 @@ async fn test_multi_peer_approval_workflow_over_tcp() {
     let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
 
     // Alice connects
-    let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
+    let alice = CollabClient::connect(&addr, "Alice".to_string())
+        .await
+        .unwrap();
     // Bob connects
-    let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+    let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+        .await
+        .unwrap();
 
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     // Alice requests approval for block_0 requiring 2 approvals
-    alice.send_approval_request("block_0".to_string(), "kubectl delete namespace staging".to_string(), 2);
+    alice.send_approval_request(
+        "block_0".to_string(),
+        "kubectl delete namespace staging".to_string(),
+        2,
+    );
 
     // Bob receives the ApprovalRequest and ApprovalStatus (1/2 from Alice)
     let mut bob_saw_request = false;
@@ -327,12 +360,21 @@ async fn test_multi_peer_approval_workflow_over_tcp() {
     while tokio::time::Instant::now() < deadline {
         if let Some(msg) = bob.try_recv() {
             match msg {
-                CollabMessage::ApprovalRequest { block_id, required_approvals, .. } => {
+                CollabMessage::ApprovalRequest {
+                    block_id,
+                    required_approvals,
+                    ..
+                } => {
                     assert_eq!(block_id, "block_0");
                     assert_eq!(required_approvals, 2);
                     bob_saw_request = true;
                 }
-                CollabMessage::ApprovalStatus { block_id, approvals_count, required_approvals, approved } => {
+                CollabMessage::ApprovalStatus {
+                    block_id,
+                    approvals_count,
+                    required_approvals,
+                    approved,
+                } => {
                     assert_eq!(block_id, "block_0");
                     assert_eq!(required_approvals, 2);
                     if approvals_count == 1 {
@@ -349,8 +391,14 @@ async fn test_multi_peer_approval_workflow_over_tcp() {
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
 
-    assert!(bob_saw_request, "Bob should receive ApprovalRequest from Alice");
-    assert!(bob_saw_status_1, "Bob should receive initial ApprovalStatus (1/2)");
+    assert!(
+        bob_saw_request,
+        "Bob should receive ApprovalRequest from Alice"
+    );
+    assert!(
+        bob_saw_status_1,
+        "Bob should receive initial ApprovalStatus (1/2)"
+    );
 
     // Bob casts approval vote
     bob.send_approval_vote("block_0".to_string());
@@ -360,8 +408,15 @@ async fn test_multi_peer_approval_workflow_over_tcp() {
     let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
     while tokio::time::Instant::now() < deadline {
         while let Some(msg) = bob.try_recv() {
-            if let CollabMessage::ApprovalStatus { block_id, approvals_count, approved, .. } = msg
-                && block_id == "block_0" && approvals_count == 2 && approved
+            if let CollabMessage::ApprovalStatus {
+                block_id,
+                approvals_count,
+                approved,
+                ..
+            } = msg
+                && block_id == "block_0"
+                && approvals_count == 2
+                && approved
             {
                 approved_consensus = true;
                 break;
@@ -373,7 +428,10 @@ async fn test_multi_peer_approval_workflow_over_tcp() {
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
 
-    assert!(approved_consensus, "Multiplayer consensus should be reached (2/2 approvals)");
+    assert!(
+        approved_consensus,
+        "Multiplayer consensus should be reached (2/2 approvals)"
+    );
     server_handle.stop();
 }
 
@@ -440,11 +498,13 @@ async fn test_command_palette_audit_log_action() {
 
     // Trigger Command Palette
     app.mode = AppMode::CommandPalette;
-    app.palette.reset(&app.workspace, app.editor.file_path.as_ref());
+    app.palette
+        .reset(&app.workspace, app.editor.file_path.as_ref());
 
     // Search for "audit"
     for c in "audit".chars() {
-        app.palette.insert_char(c, &app.workspace, app.editor.file_path.as_ref());
+        app.palette
+            .insert_char(c, &app.workspace, app.editor.file_path.as_ref());
     }
 
     let selected = app.palette.selected_item().unwrap();
@@ -566,9 +626,11 @@ fn test_audit_large_output_hash_chain_consistency_regression() {
         .unwrap();
 
     let is_valid = audit.verify_integrity().unwrap();
-    assert!(is_valid, "Audit hash chain must remain valid for >500 character outputs");
+    assert!(
+        is_valid,
+        "Audit hash chain must remain valid for >500 character outputs"
+    );
 
     let entries = audit.load_entries().unwrap();
     assert_eq!(entries.len(), 2);
 }
-

@@ -3,7 +3,7 @@ pub mod protocol;
 pub mod server;
 
 pub use client::CollabClient;
-pub use protocol::{peer_color, CollabMessage, PeerInfo};
+pub use protocol::{CollabMessage, PeerInfo, peer_color};
 pub use server::{CollabServer, CollabServerHandle};
 
 #[cfg(test)]
@@ -23,7 +23,9 @@ mod tests {
         .unwrap();
 
         let addr = server.local_addr.to_string();
-        let client = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
+        let client = CollabClient::connect(&addr, "Alice".to_string())
+            .await
+            .unwrap();
 
         assert_eq!(client.doc_name, "runbook.md");
         assert_eq!(client.initial_content, "# Multiplayer Playbook\n");
@@ -44,8 +46,12 @@ mod tests {
         .unwrap();
 
         let addr = server.local_addr.to_string();
-        let mut alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-        let bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+        let mut alice = CollabClient::connect(&addr, "Alice".to_string())
+            .await
+            .unwrap();
+        let bob = CollabClient::connect(&addr, "Bob".to_string())
+            .await
+            .unwrap();
 
         // Alice should receive Bob's PeerJoined
         let mut bob_joined = false;
@@ -58,7 +64,10 @@ mod tests {
             }
             sleep(Duration::from_millis(20)).await;
         }
-        assert!(bob_joined, "Alice should have received Bob's PeerJoined message");
+        assert!(
+            bob_joined,
+            "Alice should have received Bob's PeerJoined message"
+        );
 
         // Disconnect Bob
         let bob_id = bob.my_id.clone();
@@ -75,7 +84,10 @@ mod tests {
             }
             sleep(Duration::from_millis(20)).await;
         }
-        assert!(bob_left, "Alice should have received Bob's PeerLeft message");
+        assert!(
+            bob_left,
+            "Alice should have received Bob's PeerLeft message"
+        );
 
         // Verify Bob was cleaned up on the server
         {
@@ -98,8 +110,12 @@ mod tests {
         .unwrap();
 
         let addr = server.local_addr.to_string();
-        let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-        let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+        let alice = CollabClient::connect(&addr, "Alice".to_string())
+            .await
+            .unwrap();
+        let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+            .await
+            .unwrap();
 
         // Alice inserts character '!' at pos 0
         alice.send_insert_char(0, '!');
@@ -145,17 +161,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_cursor_move_deduplication() {
-        let server = CollabServer::bind(
-            "127.0.0.1:0",
-            "content".to_string(),
-            "test.md".to_string(),
-        )
-        .await
-        .unwrap();
+        let server =
+            CollabServer::bind("127.0.0.1:0", "content".to_string(), "test.md".to_string())
+                .await
+                .unwrap();
 
         let addr = server.local_addr.to_string();
-        let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
-        let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+        let alice = CollabClient::connect(&addr, "Alice".to_string())
+            .await
+            .unwrap();
+        let mut bob = CollabClient::connect(&addr, "Bob".to_string())
+            .await
+            .unwrap();
 
         // Alice moves cursor to line 3, col 7
         alice.send_cursor_move(3, 7);
@@ -176,7 +193,10 @@ mod tests {
             sleep(Duration::from_millis(15)).await;
         }
 
-        assert_eq!(moves_count, 1, "Duplicate cursor move should be deduplicated");
+        assert_eq!(
+            moves_count, 1,
+            "Duplicate cursor move should be deduplicated"
+        );
         server.stop();
     }
 }

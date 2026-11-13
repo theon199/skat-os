@@ -5,20 +5,18 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 pub const REDACTED: &str = "[REDACTED]";
 
 static NONCE_COUNTER: AtomicU32 = AtomicU32::new(0);
 
-static VAULT_INTERPOLATE_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\{\{\s*(?:secrets?)[.:]([a-zA-Z0-9_./:#=-]+)\s*\}\}").unwrap()
-});
+static VAULT_INTERPOLATE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\{\{\s*(?:secrets?)[.:]([a-zA-Z0-9_./:#=-]+)\s*\}\}").unwrap());
 
-static FRONTMATTER_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?s)^---\s*\n(.*?)\n---").unwrap()
-});
+static FRONTMATTER_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)^---\s*\n(.*?)\n---").unwrap());
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SecretSource {
@@ -56,7 +54,9 @@ impl SecretVault {
             sensitive_values: HashSet::new(),
             workspace_root: None,
         };
-        vault.load_env_vault_from_dir(&std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+        vault.load_env_vault_from_dir(
+            &std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        );
         vault
     }
 
@@ -216,7 +216,16 @@ impl SecretVault {
         };
 
         let output = Command::new("aws")
-            .args(["secretsmanager", "get-secret-value", "--secret-id", secret_id, "--query", "SecretString", "--output", "text"])
+            .args([
+                "secretsmanager",
+                "get-secret-value",
+                "--secret-id",
+                secret_id,
+                "--query",
+                "SecretString",
+                "--output",
+                "text",
+            ])
             .output()
             .ok()?;
 
@@ -239,7 +248,11 @@ impl SecretVault {
     fn resolve_pass_cli(path: &str) -> Option<String> {
         let output = Command::new("pass").args(["show", path]).output().ok()?;
         if output.status.success() {
-            let s = String::from_utf8_lossy(&output.stdout).lines().next()?.trim().to_string();
+            let s = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()?
+                .trim()
+                .to_string();
             if !s.is_empty() {
                 return Some(s);
             }
@@ -294,7 +307,9 @@ impl SecretVault {
 
         // Generate 12-byte monotonic/timestamped nonce to prevent nonce reuse
         let mut nonce_bytes = [0u8; 12];
-        let now = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(1234567890);
+        let now = chrono::Utc::now()
+            .timestamp_nanos_opt()
+            .unwrap_or(1234567890);
         nonce_bytes[..8].copy_from_slice(&now.to_le_bytes());
         let counter = NONCE_COUNTER.fetch_add(1, Ordering::Relaxed);
         nonce_bytes[8..12].copy_from_slice(&counter.to_le_bytes());
@@ -336,9 +351,12 @@ impl SecretVault {
                 .map_err(|_| anyhow::anyhow!("Invalid nonce slice"))?,
         );
 
-        let decrypted = cipher
-            .decrypt(&nonce, ciphertext.as_ref())
-            .map_err(|e| anyhow::anyhow!("Decryption failed (invalid passphrase or corrupted data): {}", e))?;
+        let decrypted = cipher.decrypt(&nonce, ciphertext.as_ref()).map_err(|e| {
+            anyhow::anyhow!(
+                "Decryption failed (invalid passphrase or corrupted data): {}",
+                e
+            )
+        })?;
 
         let json_str = String::from_utf8(decrypted)?;
         let map: HashMap<String, String> = serde_json::from_str(&json_str)?;
@@ -347,13 +365,20 @@ impl SecretVault {
     }
 
     /// Loads encrypted secrets from document frontmatter if present
-    pub fn load_from_frontmatter(&mut self, content: &str, passphrase: &str) -> anyhow::Result<usize> {
+    pub fn load_from_frontmatter(
+        &mut self,
+        content: &str,
+        passphrase: &str,
+    ) -> anyhow::Result<usize> {
         if let Some(caps) = FRONTMATTER_RE.captures(content)
             && let Ok(yaml) = serde_yaml::from_str::<serde_yaml::Value>(&caps[1])
             && let Some(sec_val) = yaml.get("secrets")
         {
             let nonce_opt = sec_val.get("nonce").and_then(|v| v.as_str());
-            let cipher_opt = sec_val.get("ciphertext").or_else(|| sec_val.get("encrypted")).and_then(|v| v.as_str());
+            let cipher_opt = sec_val
+                .get("ciphertext")
+                .or_else(|| sec_val.get("encrypted"))
+                .and_then(|v| v.as_str());
 
             if let (Some(nonce_hex), Some(cipher_hex)) = (nonce_opt, cipher_opt) {
                 let decrypted = Self::decrypt_secrets_payload(nonce_hex, cipher_hex, passphrase)?;
@@ -374,23 +399,28 @@ impl SecretVault {
     }
 
     /// Interpolates secrets in a command string, checking an optional fallback map (e.g. runner env_vars).
-    pub fn interpolate_secrets_with_fallback(&mut self, code: &str, fallback_envs: Option<&HashMap<String, String>>) -> String {
-        VAULT_INTERPOLATE_RE.replace_all(code, |caps: &regex::Captures| {
-            let key = &caps[1];
-            if let Some(val) = self.resolve(key) {
-                val
-            } else if let Some(envs) = fallback_envs {
-                if let Some(val) = envs.get(key) {
-                    self.insert(key, val);
-                    val.clone()
+    pub fn interpolate_secrets_with_fallback(
+        &mut self,
+        code: &str,
+        fallback_envs: Option<&HashMap<String, String>>,
+    ) -> String {
+        VAULT_INTERPOLATE_RE
+            .replace_all(code, |caps: &regex::Captures| {
+                let key = &caps[1];
+                if let Some(val) = self.resolve(key) {
+                    val
+                } else if let Some(envs) = fallback_envs {
+                    if let Some(val) = envs.get(key) {
+                        self.insert(key, val);
+                        val.clone()
+                    } else {
+                        caps[0].to_string()
+                    }
                 } else {
                     caps[0].to_string()
                 }
-            } else {
-                caps[0].to_string()
-            }
-        })
-        .to_string()
+            })
+            .to_string()
     }
 
     /// Masks all known sensitive values in the given text, replacing them with `[REDACTED]`.
@@ -398,7 +428,11 @@ impl SecretVault {
     /// are replaced before shorter substrings, preventing partial-leak exposure.
     pub fn mask(&self, text: &str) -> String {
         let mut masked = text.to_string();
-        let mut values: Vec<&String> = self.sensitive_values.iter().filter(|v| v.len() >= 3).collect();
+        let mut values: Vec<&String> = self
+            .sensitive_values
+            .iter()
+            .filter(|v| v.len() >= 3)
+            .collect();
         values.sort_by_key(|b| std::cmp::Reverse(b.len()));
 
         for secret_val in values {
@@ -445,9 +479,14 @@ mod tests {
         );
 
         // Verify output masking
-        let simulated_output = "Connected using password postgresP@ssw0rd999, key is AKIA-SUPER-SECRET-XYZ-12345.".to_string();
+        let simulated_output =
+            "Connected using password postgresP@ssw0rd999, key is AKIA-SUPER-SECRET-XYZ-12345."
+                .to_string();
         let masked = vault.mask(&simulated_output);
-        assert_eq!(masked, "Connected using password [REDACTED], key is [REDACTED].");
+        assert_eq!(
+            masked,
+            "Connected using password [REDACTED], key is [REDACTED]."
+        );
         assert!(!masked.contains("postgresP@ssw0rd999"));
         assert!(!masked.contains("AKIA-SUPER-SECRET-XYZ-12345"));
     }
@@ -461,32 +500,59 @@ PROD_API_KEY="sk_live_998877665544"
 DATABASE_URL=postgres://user:secret123@db.prod.internal:5432/main
 "#;
         vault.parse_and_load_env_content(content);
-        assert_eq!(vault.resolve("PROD_API_KEY"), Some("sk_live_998877665544".to_string()));
-        assert_eq!(vault.resolve("DATABASE_URL"), Some("postgres://user:secret123@db.prod.internal:5432/main".to_string()));
+        assert_eq!(
+            vault.resolve("PROD_API_KEY"),
+            Some("sk_live_998877665544".to_string())
+        );
+        assert_eq!(
+            vault.resolve("DATABASE_URL"),
+            Some("postgres://user:secret123@db.prod.internal:5432/main".to_string())
+        );
     }
 
     #[test]
     fn test_chacha20poly1305_payload_encryption_and_decryption() {
         let mut map = HashMap::new();
-        map.insert("STRIPE_KEY".to_string(), "sk_live_secret_stripe_token".to_string());
-        map.insert("DATABASE_PASS".to_string(), "CorrectHorseBatteryStaple".to_string());
+        map.insert(
+            "STRIPE_KEY".to_string(),
+            "sk_live_secret_stripe_token".to_string(),
+        );
+        map.insert(
+            "DATABASE_PASS".to_string(),
+            "CorrectHorseBatteryStaple".to_string(),
+        );
 
         let passphrase = "my-secure-master-passphrase";
-        let (nonce_hex, cipher_hex) = SecretVault::encrypt_secrets_payload(&map, passphrase).unwrap();
+        let (nonce_hex, cipher_hex) =
+            SecretVault::encrypt_secrets_payload(&map, passphrase).unwrap();
 
-        let decrypted = SecretVault::decrypt_secrets_payload(&nonce_hex, &cipher_hex, passphrase).unwrap();
-        assert_eq!(decrypted.get("STRIPE_KEY"), Some(&"sk_live_secret_stripe_token".to_string()));
-        assert_eq!(decrypted.get("DATABASE_PASS"), Some(&"CorrectHorseBatteryStaple".to_string()));
+        let decrypted =
+            SecretVault::decrypt_secrets_payload(&nonce_hex, &cipher_hex, passphrase).unwrap();
+        assert_eq!(
+            decrypted.get("STRIPE_KEY"),
+            Some(&"sk_live_secret_stripe_token".to_string())
+        );
+        assert_eq!(
+            decrypted.get("DATABASE_PASS"),
+            Some(&"CorrectHorseBatteryStaple".to_string())
+        );
 
         // Wrong passphrase should fail decryption
-        assert!(SecretVault::decrypt_secrets_payload(&nonce_hex, &cipher_hex, "wrong-passphrase").is_err());
+        assert!(
+            SecretVault::decrypt_secrets_payload(&nonce_hex, &cipher_hex, "wrong-passphrase")
+                .is_err()
+        );
     }
 
     #[test]
     fn test_frontmatter_encrypted_secrets_loading() {
         let mut map = HashMap::new();
-        map.insert("DEPLOY_TOKEN".to_string(), "deploy_token_abc_xyz".to_string());
-        let (nonce_hex, cipher_hex) = SecretVault::encrypt_secrets_payload(&map, "pass123").unwrap();
+        map.insert(
+            "DEPLOY_TOKEN".to_string(),
+            "deploy_token_abc_xyz".to_string(),
+        );
+        let (nonce_hex, cipher_hex) =
+            SecretVault::encrypt_secrets_payload(&map, "pass123").unwrap();
 
         let doc = format!(
             "---\ntitle: Production Runbook\nsecrets:\n  cipher: chacha20-poly1305\n  nonce: {}\n  ciphertext: {}\n---\n\n# Runbook\n",
@@ -496,7 +562,10 @@ DATABASE_URL=postgres://user:secret123@db.prod.internal:5432/main
         let mut vault = SecretVault::new();
         let loaded = vault.load_from_frontmatter(&doc, "pass123").unwrap();
         assert_eq!(loaded, 1);
-        assert_eq!(vault.resolve("DEPLOY_TOKEN"), Some("deploy_token_abc_xyz".to_string()));
+        assert_eq!(
+            vault.resolve("DEPLOY_TOKEN"),
+            Some("deploy_token_abc_xyz".to_string())
+        );
     }
 
     #[test]
@@ -521,6 +590,9 @@ DATABASE_URL=postgres://user:secret123@db.prod.internal:5432/main
 
         let (nonce1, _) = SecretVault::encrypt_secrets_payload(&map, "pass").unwrap();
         let (nonce2, _) = SecretVault::encrypt_secrets_payload(&map, "pass").unwrap();
-        assert_ne!(nonce1, nonce2, "Consecutive nonces must be strictly distinct");
+        assert_ne!(
+            nonce1, nonce2,
+            "Consecutive nonces must be strictly distinct"
+        );
     }
 }

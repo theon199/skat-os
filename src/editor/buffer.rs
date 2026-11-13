@@ -230,7 +230,10 @@ impl TextBuffer {
         // Detect leading indentation from current line to preserve it
         let current_line = self.line_to_string(self.cursor_line);
         let line_chars: Vec<char> = current_line.chars().collect();
-        let indent_len = line_chars.iter().take_while(|c| **c == ' ' || **c == '\t').count();
+        let indent_len = line_chars
+            .iter()
+            .take_while(|c| **c == ' ' || **c == '\t')
+            .count();
         let indent_to_copy = if self.cursor_col >= indent_len {
             &line_chars[..indent_len]
         } else {
@@ -295,7 +298,10 @@ impl TextBuffer {
             self.push_undo_state();
             let idx = self.char_index_at_cursor();
             if idx < self.rope.len_chars() {
-                if idx + 1 < self.rope.len_chars() && self.rope.char(idx) == '\r' && self.rope.char(idx + 1) == '\n' {
+                if idx + 1 < self.rope.len_chars()
+                    && self.rope.char(idx) == '\r'
+                    && self.rope.char(idx + 1) == '\n'
+                {
                     self.rope.remove(idx..idx + 2);
                 } else {
                     self.rope.remove(idx..idx + 1);
@@ -383,7 +389,10 @@ impl TextBuffer {
     }
 
     pub fn page_down(&mut self, height: usize) {
-        self.cursor_line = min(self.cursor_line + height, self.line_count().saturating_sub(1));
+        self.cursor_line = min(
+            self.cursor_line + height,
+            self.line_count().saturating_sub(1),
+        );
         self.cursor_col = min(self.cursor_col, self.line_len(self.cursor_line));
     }
 
@@ -630,7 +639,8 @@ impl TextBuffer {
             let char_pos = line_start + info.check_char_col;
             if char_pos < self.rope.len_chars() {
                 self.rope.remove(char_pos..char_pos + 1);
-                self.rope.insert_char(char_pos, if checked { 'x' } else { ' ' });
+                self.rope
+                    .insert_char(char_pos, if checked { 'x' } else { ' ' });
                 self.is_dirty = true;
                 return true;
             }
@@ -668,7 +678,6 @@ pub struct TaskItemInfo {
     pub bracket_close_col: usize,
     pub prefix_end_col: usize,
 }
-
 
 #[cfg(test)]
 mod tests {

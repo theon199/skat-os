@@ -1,5 +1,5 @@
-use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
+use fuzzy_matcher::skim::SkimMatcherV2;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
@@ -53,19 +53,32 @@ impl CommandPalette {
         }
     }
 
-    pub fn reset(&mut self, workspace: &crate::workspace::Workspace, current_file: Option<&PathBuf>) {
+    pub fn reset(
+        &mut self,
+        workspace: &crate::workspace::Workspace,
+        current_file: Option<&PathBuf>,
+    ) {
         self.query.clear();
         self.selected_index = 0;
         self.is_search_mode = false;
         self.rebuild_items(workspace, current_file);
     }
 
-    pub fn insert_char(&mut self, c: char, workspace: &crate::workspace::Workspace, current_file: Option<&PathBuf>) {
+    pub fn insert_char(
+        &mut self,
+        c: char,
+        workspace: &crate::workspace::Workspace,
+        current_file: Option<&PathBuf>,
+    ) {
         self.query.push(c);
         self.rebuild_items(workspace, current_file);
     }
 
-    pub fn backspace(&mut self, workspace: &crate::workspace::Workspace, current_file: Option<&PathBuf>) {
+    pub fn backspace(
+        &mut self,
+        workspace: &crate::workspace::Workspace,
+        current_file: Option<&PathBuf>,
+    ) {
         self.query.pop();
         self.rebuild_items(workspace, current_file);
     }
@@ -86,7 +99,11 @@ impl CommandPalette {
         self.items.get(self.selected_index)
     }
 
-    pub fn rebuild_items(&mut self, workspace: &crate::workspace::Workspace, current_file: Option<&PathBuf>) {
+    pub fn rebuild_items(
+        &mut self,
+        workspace: &crate::workspace::Workspace,
+        current_file: Option<&PathBuf>,
+    ) {
         let mut candidates = Vec::new();
         let q = self.query.trim();
 
@@ -195,7 +212,11 @@ impl CommandPalette {
             };
 
             // If a document or system action matched, prioritize matched item; otherwise place create on top
-            let create_score = if document_matched || system_matched { 50 } else { 1000 };
+            let create_score = if document_matched || system_matched {
+                50
+            } else {
+                1000
+            };
             candidates.push(PaletteItem {
                 label: format!("+ Create document: {}", doc_name),
                 subtext: "Create and open new markdown note".to_string(),

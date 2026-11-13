@@ -221,7 +221,10 @@ impl TableData {
         let mut rows = Vec::new();
         for &line in &lines[1..] {
             // Skip markdown table divider line like |---|---|
-            if line.chars().all(|c| c == '-' || c == '|' || c == ':' || c.is_whitespace()) {
+            if line
+                .chars()
+                .all(|c| c == '-' || c == '|' || c == ':' || c.is_whitespace())
+            {
                 continue;
             }
             let mut row = parse_row(line);
@@ -267,12 +270,16 @@ impl TableData {
             .iter()
             .position(|h| h.eq_ignore_ascii_case(col_name))?;
 
-        self.rows.get(row_idx).and_then(|r| r.get(col_idx).map(|s| s.as_str()))
+        self.rows
+            .get(row_idx)
+            .and_then(|r| r.get(col_idx).map(|s| s.as_str()))
     }
 
     /// Retrieves cell value by column index for the specified row
     pub fn get_cell_by_idx(&self, row_idx: usize, col_idx: usize) -> Option<&str> {
-        self.rows.get(row_idx).and_then(|r| r.get(col_idx).map(|s| s.as_str()))
+        self.rows
+            .get(row_idx)
+            .and_then(|r| r.get(col_idx).map(|s| s.as_str()))
     }
 
     /// Retrieves cell value in currently selected row by column name

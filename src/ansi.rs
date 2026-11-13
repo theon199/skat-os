@@ -170,7 +170,11 @@ fn apply_sgr_params(param_str: &str, style: &mut Style) {
     let mut param_count = 0;
     for s in param_str.split(';') {
         if param_count < params_buf.len() {
-            let val = if s.is_empty() { 0 } else { s.parse::<u32>().unwrap_or(0) };
+            let val = if s.is_empty() {
+                0
+            } else {
+                s.parse::<u32>().unwrap_or(0)
+            };
             params_buf[param_count] = val;
             param_count += 1;
         }
@@ -310,13 +314,19 @@ mod tests {
         assert_eq!(spans[0].style, Style::default().fg(Color::Indexed(201)));
 
         assert_eq!(spans[2].content, "TrueColor");
-        assert_eq!(spans[2].style, Style::default().fg(Color::Rgb(100, 150, 200)));
+        assert_eq!(
+            spans[2].style,
+            Style::default().fg(Color::Rgb(100, 150, 200))
+        );
     }
 
     #[test]
     fn test_strip_ansi_codes() {
         let input = "\x1b[1;32mCompiling\x1b[0m \x1b[33mcore\x1b[0m v0.1.0 (\x1b[4mhttps://crates.io\x1b[0m)";
-        assert_eq!(strip_ansi_codes(input), "Compiling core v0.1.0 (https://crates.io)");
+        assert_eq!(
+            strip_ansi_codes(input),
+            "Compiling core v0.1.0 (https://crates.io)"
+        );
     }
 
     #[test]

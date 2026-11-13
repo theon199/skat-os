@@ -4,11 +4,13 @@ use skat_os::collab::client::CollabClient;
 use skat_os::collab::protocol::CollabMessage;
 use skat_os::collab::server::CollabServer;
 use skat_os::editor::buffer::TextBuffer;
-use skat_os::mesh::{global_ssh_pool, FleetOutput, HostOutput, HostRegistry, SshEndpoint, SshSessionPool};
+use skat_os::mesh::{
+    FleetOutput, HostOutput, HostRegistry, SshEndpoint, SshSessionPool, global_ssh_pool,
+};
 use skat_os::runner::{CodeBlock, ExecutionResult, Runner};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 #[test]
@@ -40,7 +42,10 @@ pg_isready
     assert_eq!(blocks.len(), 5);
 
     // Block 0: Direct SSH target
-    assert_eq!(blocks[0].target.as_deref(), Some("ssh://ubuntu@10.0.0.12:22"));
+    assert_eq!(
+        blocks[0].target.as_deref(),
+        Some("ssh://ubuntu@10.0.0.12:22")
+    );
     assert_eq!(blocks[0].proxy, None);
     assert!(!blocks[0].parallel);
 
@@ -51,7 +56,10 @@ pg_isready
     assert!(!blocks[1].parallel);
 
     // Block 2: Parameterized target
-    assert_eq!(blocks[2].target.as_deref(), Some("ssh://{{params.USER}}@{{params.HOST}}"));
+    assert_eq!(
+        blocks[2].target.as_deref(),
+        Some("ssh://{{params.USER}}@{{params.HOST}}")
+    );
 
     // Block 3: Host group with parallel=true
     assert_eq!(blocks[3].target.as_deref(), Some("@web_servers"));
@@ -78,7 +86,8 @@ fn test_target_parameter_interpolation() {
     let outputs = HashMap::new();
     let tables = HashMap::new();
 
-    let interpolated_target = Runner::interpolate_variables_with_context(target_template, &outputs, &params, &tables);
+    let interpolated_target =
+        Runner::interpolate_variables_with_context(target_template, &outputs, &params, &tables);
     assert_eq!(interpolated_target, "ssh://admin@cluster.internal:2222");
 
     let ep = SshEndpoint::parse(&interpolated_target).unwrap();
@@ -86,10 +95,12 @@ fn test_target_parameter_interpolation() {
     assert_eq!(ep.host, "cluster.internal");
     assert_eq!(ep.port, 2222);
 
-    let interpolated_proxy = Runner::interpolate_variables_with_context(proxy_template, &outputs, &params, &tables);
+    let interpolated_proxy =
+        Runner::interpolate_variables_with_context(proxy_template, &outputs, &params, &tables);
     assert_eq!(interpolated_proxy, "ssh://bastion.corp.com");
 
-    let interpolated_group = Runner::interpolate_variables_with_context(group_template, &outputs, &params, &tables);
+    let interpolated_group =
+        Runner::interpolate_variables_with_context(group_template, &outputs, &params, &tables);
     assert_eq!(interpolated_group, "@prod_servers");
 }
 
@@ -122,7 +133,9 @@ edge_nodes:
     assert_eq!(db, vec!["10.0.3.1", "10.0.3.2"]);
 
     // 3. Resolve direct target
-    let direct = HostRegistry::resolve_target("ssh://ubuntu@10.0.0.99", Some(&buf), temp_dir.path()).unwrap();
+    let direct =
+        HostRegistry::resolve_target("ssh://ubuntu@10.0.0.99", Some(&buf), temp_dir.path())
+            .unwrap();
     assert_eq!(direct, vec!["ssh://ubuntu@10.0.0.99"]);
 
     // 4. Missing group
@@ -166,33 +179,67 @@ fn test_downstream_variable_interpolation_multi_host() {
 
     // Test indexed host stdout
     let code1 = "Node 0: {{web_servers[0].stdout}} | Node 1: {{web_servers[1].stdout}}";
-    let interpolated1 = Runner::interpolate_variables_with_context(code1, &outputs, &params, &tables);
-    assert_eq!(interpolated1, "Node 0: web-1 ready | Node 1: web-2 degraded");
+    let interpolated1 =
+        Runner::interpolate_variables_with_context(code1, &outputs, &params, &tables);
+    assert_eq!(
+        interpolated1,
+        "Node 0: web-1 ready | Node 1: web-2 degraded"
+    );
 
     // Test indexed host stderr and exit_code
     let code2 = "Node 1 err: {{web_servers[1].stderr}}, code: {{web_servers[1].exit_code}}, host: {{web_servers[1].host}}";
-    let interpolated2 = Runner::interpolate_variables_with_context(code2, &outputs, &params, &tables);
-    assert_eq!(interpolated2, "Node 1 err: Port 80 busy, code: 1, host: 10.0.0.2");
+    let interpolated2 =
+        Runner::interpolate_variables_with_context(code2, &outputs, &params, &tables);
+    assert_eq!(
+        interpolated2,
+        "Node 1 err: Port 80 busy, code: 1, host: 10.0.0.2"
+    );
 
     // Test aggregate fields: failed, success, count, hosts
     let code3 = "Failed: [{{web_servers.failed}}], Success: {{web_servers.success}}, Count: {{web_servers.count}}";
-    let interpolated3 = Runner::interpolate_variables_with_context(code3, &outputs, &params, &tables);
-    assert_eq!(interpolated3, "Failed: [10.0.0.2], Success: false, Count: 2");
+    let interpolated3 =
+        Runner::interpolate_variables_with_context(code3, &outputs, &params, &tables);
+    assert_eq!(
+        interpolated3,
+        "Failed: [10.0.0.2], Success: false, Count: 2"
+    );
 
     // Test reference via custom block name
     let code4 = "First host: {{check_cluster[0].host}}";
-    let interpolated4 = Runner::interpolate_variables_with_context(code4, &outputs, &params, &tables);
+    let interpolated4 =
+        Runner::interpolate_variables_with_context(code4, &outputs, &params, &tables);
     assert_eq!(interpolated4, "First host: 10.0.0.1");
 
     // Test auto-injected environment variables
     let env_vars = Runner::build_environment_variables_with_context(&outputs, &params, &tables);
-    assert_eq!(env_vars.get("SKAT_WEB_SERVERS_0_STDOUT"), Some(&"web-1 ready".to_string()));
-    assert_eq!(env_vars.get("SKAT_WEB_SERVERS_1_STDOUT"), Some(&"web-2 degraded".to_string()));
-    assert_eq!(env_vars.get("SKAT_WEB_SERVERS_1_STDERR"), Some(&"Port 80 busy".to_string()));
-    assert_eq!(env_vars.get("SKAT_WEB_SERVERS_1_EXIT_CODE"), Some(&"1".to_string()));
-    assert_eq!(env_vars.get("SKAT_WEB_SERVERS_FAILED"), Some(&"10.0.0.2".to_string()));
-    assert_eq!(env_vars.get("SKAT_WEB_SERVERS_SUCCESS"), Some(&"false".to_string()));
-    assert_eq!(env_vars.get("SKAT_WEB_SERVERS_COUNT"), Some(&"2".to_string()));
+    assert_eq!(
+        env_vars.get("SKAT_WEB_SERVERS_0_STDOUT"),
+        Some(&"web-1 ready".to_string())
+    );
+    assert_eq!(
+        env_vars.get("SKAT_WEB_SERVERS_1_STDOUT"),
+        Some(&"web-2 degraded".to_string())
+    );
+    assert_eq!(
+        env_vars.get("SKAT_WEB_SERVERS_1_STDERR"),
+        Some(&"Port 80 busy".to_string())
+    );
+    assert_eq!(
+        env_vars.get("SKAT_WEB_SERVERS_1_EXIT_CODE"),
+        Some(&"1".to_string())
+    );
+    assert_eq!(
+        env_vars.get("SKAT_WEB_SERVERS_FAILED"),
+        Some(&"10.0.0.2".to_string())
+    );
+    assert_eq!(
+        env_vars.get("SKAT_WEB_SERVERS_SUCCESS"),
+        Some(&"false".to_string())
+    );
+    assert_eq!(
+        env_vars.get("SKAT_WEB_SERVERS_COUNT"),
+        Some(&"2".to_string())
+    );
 }
 
 #[tokio::test]
@@ -410,7 +457,11 @@ echo "Deployment successful"
 
     let buffer = TextBuffer::from_str(doc);
     let temp_dir = tempfile::tempdir().unwrap();
-    std::fs::write(temp_dir.path().join("hosts.yaml"), "web_nodes: [10.99.0.1, 10.99.0.2]\n").unwrap();
+    std::fs::write(
+        temp_dir.path().join("hosts.yaml"),
+        "web_nodes: [10.99.0.1, 10.99.0.2]\n",
+    )
+    .unwrap();
     let blocks = Runner::all_code_blocks(&buffer);
     assert_eq!(blocks.len(), 2);
 
@@ -423,7 +474,10 @@ echo "Deployment successful"
         HashMap::new(),
         move |step_idx, _b| {
             es_clone.fetch_add(1, Ordering::SeqCst);
-            assert_eq!(step_idx, 0, "Second step must NOT execute due to fail-fast safeguard");
+            assert_eq!(
+                step_idx, 0,
+                "Second step must NOT execute due to fail-fast safeguard"
+            );
         },
         |_step_idx, _b, _res| {},
     )
@@ -440,13 +494,11 @@ echo "Deployment successful"
 async fn test_remote_streaming_and_interactive_stdin() {
     let pool = SshSessionPool::new();
 
-    pool.register_mock_host("interactive.node", |cmd, _env| {
-        ExecutionResult {
-            stdout: format!("Interactive answer received for {}\n", cmd),
-            stderr: String::new(),
-            exit_code: 0,
-            timed_out: false,
-        }
+    pool.register_mock_host("interactive.node", |cmd, _env| ExecutionResult {
+        stdout: format!("Interactive answer received for {}\n", cmd),
+        stderr: String::new(),
+        exit_code: 0,
+        timed_out: false,
     });
 
     let temp_dir = tempfile::tempdir().unwrap();
@@ -524,7 +576,12 @@ echo "Checking cluster state..."
     });
 
     // 1. Start zero-cloud TCP server
-    let server_handle = CollabServer::bind("127.0.0.1:0", doc_content.to_string(), "cluster.md".to_string()).await?;
+    let server_handle = CollabServer::bind(
+        "127.0.0.1:0",
+        doc_content.to_string(),
+        "cluster.md".to_string(),
+    )
+    .await?;
     let port = server_handle.local_addr.port();
     let server_addr = format!("127.0.0.1:{}", port);
 
@@ -591,7 +648,10 @@ echo "Checking cluster state..."
     }
 
     assert!(stream_ended, "Bob must receive StreamEnd message");
-    assert!(!bob_chunks.is_empty(), "Bob must receive streamed remote chunks");
+    assert!(
+        !bob_chunks.is_empty(),
+        "Bob must receive streamed remote chunks"
+    );
 
     let combined_bob_stream = bob_chunks.join("");
     assert!(combined_bob_stream.contains("[10.0.0.1]"));
@@ -638,18 +698,27 @@ host 3 failed
     app.editor.buffer.cursor_line = 9;
 
     // Simulate pressing ']' to switch to tab 1
-    app.handle_key_event(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char(']')));
+    app.handle_key_event(crossterm::event::KeyEvent::from(
+        crossterm::event::KeyCode::Char(']'),
+    ));
     let fleet = app.fleet_states.get("check_fleet").unwrap();
     assert_eq!(fleet.selected_tab, 1);
-    assert!(app.status_message.contains("Showing host 2/3 (10.0.0.2)") || app.status_message.contains("Host 2/3"));
+    assert!(
+        app.status_message.contains("Showing host 2/3 (10.0.0.2)")
+            || app.status_message.contains("Host 2/3")
+    );
 
     // Simulate pressing ']' to switch to tab 2
-    app.handle_key_event(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char(']')));
+    app.handle_key_event(crossterm::event::KeyEvent::from(
+        crossterm::event::KeyCode::Char(']'),
+    ));
     let fleet = app.fleet_states.get("check_fleet").unwrap();
     assert_eq!(fleet.selected_tab, 2);
 
     // Simulate pressing '[' to switch back to tab 1
-    app.handle_key_event(crossterm::event::KeyEvent::from(crossterm::event::KeyCode::Char('[')));
+    app.handle_key_event(crossterm::event::KeyEvent::from(
+        crossterm::event::KeyCode::Char('['),
+    ));
     let fleet = app.fleet_states.get("check_fleet").unwrap();
     assert_eq!(fleet.selected_tab, 1);
 }
@@ -687,4 +756,3 @@ fn test_mesh_session_pool_evict_regression() {
     // Evict on non-existent or stale connection should cleanly succeed without panics
     pool.evict(&ep, None);
 }
-
