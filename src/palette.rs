@@ -230,7 +230,7 @@ impl CommandPalette {
         }
 
         // Sort candidates by score descending
-        candidates.sort_by(|a, b| b.score.cmp(&a.score));
+        candidates.sort_by_key(|a| std::cmp::Reverse(a.score));
 
         self.items = candidates;
         if self.selected_index >= self.items.len() {

@@ -653,3 +653,38 @@ host 3 failed
     let fleet = app.fleet_states.get("check_fleet").unwrap();
     assert_eq!(fleet.selected_tab, 1);
 }
+
+#[test]
+fn test_mesh_ipv6_endpoint_parsing_regression() {
+    use skat_os::mesh::SshEndpoint;
+
+    // Bracketed IPv6 with port
+    let ep1 = SshEndpoint::parse("[::1]:2222").unwrap();
+    assert_eq!(ep1.host, "::1");
+    assert_eq!(ep1.port, 2222);
+    assert_eq!(ep1.user, None);
+
+    // Bracketed IPv6 with user and default port
+    let ep2 = SshEndpoint::parse("admin@[2001:db8::1]:22").unwrap();
+    assert_eq!(ep2.host, "2001:db8::1");
+    assert_eq!(ep2.port, 22);
+    assert_eq!(ep2.user, Some("admin".to_string()));
+
+    // Standard hostname without port
+    let ep3 = SshEndpoint::parse("ssh://deployer@cluster.internal").unwrap();
+    assert_eq!(ep3.host, "cluster.internal");
+    assert_eq!(ep3.port, 22);
+    assert_eq!(ep3.user, Some("deployer".to_string()));
+}
+
+#[test]
+fn test_mesh_session_pool_evict_regression() {
+    use skat_os::mesh::{SshEndpoint, SshSessionPool};
+
+    let pool = SshSessionPool::new();
+    let ep = SshEndpoint::parse("user@192.168.1.50:22").unwrap();
+
+    // Evict on non-existent or stale connection should cleanly succeed without panics
+    pool.evict(&ep, None);
+}
+

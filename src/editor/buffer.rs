@@ -1,4 +1,4 @@
-use ropey::Rope;
+use ropey::{Rope, RopeSlice};
 use std::cmp::min;
 
 #[derive(Clone, Debug)]
@@ -19,6 +19,14 @@ impl Default for TextBuffer {
     }
 }
 
+impl std::str::FromStr for TextBuffer {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self::from_str(s))
+    }
+}
+
 impl TextBuffer {
     pub fn new() -> Self {
         Self {
@@ -33,6 +41,7 @@ impl TextBuffer {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(text: &str) -> Self {
         Self {
             rope: Rope::from_str(text),
@@ -63,6 +72,8 @@ impl TextBuffer {
                 if len > 1 && line.char(len - 2) == '\r' {
                     return len - 2;
                 }
+                return len - 1;
+            } else if last_char == '\r' {
                 return len - 1;
             }
         }
@@ -96,9 +107,9 @@ impl TextBuffer {
         self.is_dirty = true;
     }
 
-    fn push_undo_state(&mut self) {
+    pub fn push_undo_state(&mut self) {
         let current_text = self.rope.to_string();
-        if self.undo_stack.last().map(|s| s == &current_text).unwrap_or(false) {
+        if self.undo_stack.last().is_some_and(|s| s == &current_text) {
             return;
         }
         self.undo_stack.push(current_text);
@@ -133,10 +144,15 @@ impl TextBuffer {
     }
 
     pub fn char_index_at_cursor(&self) -> usize {
-        let line_start = self.rope.line_to_char(self.cursor_line);
-        let line_len = self.line_len(self.cursor_line);
+        let count = self.line_count();
+        if count == 0 {
+            return 0;
+        }
+        let line = min(self.cursor_line, count.saturating_sub(1));
+        let line_start = self.rope.line_to_char(line);
+        let line_len = self.line_len(line);
         let col = min(self.cursor_col, line_len);
-        line_start + col
+        min(line_start + col, self.rope.len_chars())
     }
 
     pub fn char_to_line_col(&self, char_idx: usize) -> (usize, usize) {
@@ -154,7 +170,7 @@ impl TextBuffer {
         }
         let line_start = self.rope.line_to_char(line);
         let line_len = self.line_len(line);
-        line_start + min(col, line_len)
+        min(line_start + min(col, line_len), self.rope.len_chars())
     }
 
     pub fn apply_remote_insert(&mut self, pos: usize, c: char) {
@@ -185,6 +201,10 @@ impl TextBuffer {
                 let (new_line, new_col) = self.char_to_line_col(local_cursor_idx.saturating_sub(1));
                 self.cursor_line = new_line;
                 self.cursor_col = new_col;
+            } else {
+                let max_line = self.line_count().saturating_sub(1);
+                self.cursor_line = min(self.cursor_line, max_line);
+                self.cursor_col = min(self.cursor_col, self.line_len(self.cursor_line));
             }
         }
     }
@@ -209,10 +229,14 @@ impl TextBuffer {
         self.push_undo_state();
         // Detect leading indentation from current line to preserve it
         let current_line = self.line_to_string(self.cursor_line);
-        let indent = current_line
-            .chars()
-            .take_while(|c| *c == ' ' || *c == '\t')
-            .collect::<String>();
+        let line_chars: Vec<char> = current_line.chars().collect();
+        let indent_len = line_chars.iter().take_while(|c| **c == ' ' || **c == '\t').count();
+        let indent_to_copy = if self.cursor_col >= indent_len {
+            &line_chars[..indent_len]
+        } else {
+            &line_chars[..self.cursor_col]
+        };
+        let indent: String = indent_to_copy.iter().collect();
 
         let idx = self.char_index_at_cursor();
         self.rope.insert_char(idx, '\n');
@@ -233,9 +257,11 @@ impl TextBuffer {
         if self.cursor_col > 0 {
             self.push_undo_state();
             let idx = self.char_index_at_cursor();
-            self.rope.remove(idx - 1..idx);
-            self.cursor_col -= 1;
-            self.is_dirty = true;
+            if idx > 0 {
+                self.rope.remove(idx - 1..idx);
+                self.cursor_col -= 1;
+                self.is_dirty = true;
+            }
         } else if self.cursor_line > 0 {
             self.push_undo_state();
             let prev_line = self.cursor_line - 1;
@@ -244,7 +270,11 @@ impl TextBuffer {
 
             // The newline to delete is right before idx
             if idx > 0 {
-                self.rope.remove(idx - 1..idx);
+                if idx >= 2 && self.rope.char(idx - 1) == '\n' && self.rope.char(idx - 2) == '\r' {
+                    self.rope.remove(idx - 2..idx);
+                } else {
+                    self.rope.remove(idx - 1..idx);
+                }
                 self.cursor_line = prev_line;
                 self.cursor_col = prev_len;
                 self.is_dirty = true;
@@ -257,13 +287,21 @@ impl TextBuffer {
         if self.cursor_col < line_len {
             self.push_undo_state();
             let idx = self.char_index_at_cursor();
-            self.rope.remove(idx..idx + 1);
-            self.is_dirty = true;
+            if idx < self.rope.len_chars() {
+                self.rope.remove(idx..idx + 1);
+                self.is_dirty = true;
+            }
         } else if self.cursor_line + 1 < self.line_count() {
             self.push_undo_state();
             let idx = self.char_index_at_cursor();
-            self.rope.remove(idx..idx + 1);
-            self.is_dirty = true;
+            if idx < self.rope.len_chars() {
+                if idx + 1 < self.rope.len_chars() && self.rope.char(idx) == '\r' && self.rope.char(idx + 1) == '\n' {
+                    self.rope.remove(idx..idx + 2);
+                } else {
+                    self.rope.remove(idx..idx + 1);
+                }
+                self.is_dirty = true;
+            }
         }
     }
 
@@ -276,7 +314,7 @@ impl TextBuffer {
         self.push_undo_state();
         let line = self.line_to_string(self.cursor_line);
         let chars: Vec<char> = line.chars().collect();
-        let mut new_col = self.cursor_col;
+        let mut new_col = min(self.cursor_col, chars.len());
 
         // Skip spaces backwards
         while new_col > 0 && chars[new_col - 1].is_whitespace() {
@@ -288,7 +326,12 @@ impl TextBuffer {
         }
 
         let line_start = self.rope.line_to_char(self.cursor_line);
-        self.rope.remove((line_start + new_col)..(line_start + self.cursor_col));
+        let char_limit = self.rope.len_chars();
+        let from_idx = min(line_start + new_col, char_limit);
+        let to_idx = min(line_start + self.cursor_col, char_limit);
+        if from_idx < to_idx {
+            self.rope.remove(from_idx..to_idx);
+        }
         self.cursor_col = new_col;
         self.is_dirty = true;
     }
@@ -351,12 +394,12 @@ impl TextBuffer {
         }
         let line = self.line_to_string(self.cursor_line);
         let chars: Vec<char> = line.chars().collect();
-        let mut col = self.cursor_col;
+        let mut col = min(self.cursor_col, chars.len());
 
-        while col > 0 && col <= chars.len() && chars[col - 1].is_whitespace() {
+        while col > 0 && chars[col - 1].is_whitespace() {
             col -= 1;
         }
-        while col > 0 && col <= chars.len() && !chars[col - 1].is_whitespace() {
+        while col > 0 && !chars[col - 1].is_whitespace() {
             col -= 1;
         }
         self.cursor_col = col;
@@ -401,7 +444,7 @@ impl TextBuffer {
         }
     }
 
-    /// Parses a task item prefix like `- [ ]`, `* [ ]`, `- [x]`, `* [X]`
+    /// Parses a task item prefix like `- [ ]`, `* [ ]`, `+ [ ]`, `1. [ ]`, `- [x]`, `* [X]`
     pub fn parse_task_item(line: &str) -> Option<TaskItemInfo> {
         let chars: Vec<char> = line.chars().collect();
         let len = chars.len();
@@ -412,18 +455,31 @@ impl TextBuffer {
             i += 1;
         }
 
-        // Bullet marker: '-' or '*'
-        if i >= len || (chars[i] != '-' && chars[i] != '*') {
+        if i >= len {
             return None;
         }
-        let marker_col = i;
-        i += 1;
 
-        // Space(s) between marker and '['
-        if i >= len || chars[i] != ' ' {
+        let marker_col = i;
+        if chars[i] == '-' || chars[i] == '*' || chars[i] == '+' {
+            i += 1;
+        } else if chars[i].is_ascii_digit() {
+            while i < len && chars[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i < len && (chars[i] == '.' || chars[i] == ')') {
+                i += 1;
+            } else {
+                return None;
+            }
+        } else {
             return None;
         }
-        while i < len && chars[i] == ' ' {
+
+        // Space(s) or tab(s) between marker and '['
+        if i >= len || (chars[i] != ' ' && chars[i] != '\t') {
+            return None;
+        }
+        while i < len && (chars[i] == ' ' || chars[i] == '\t') {
             i += 1;
         }
 
@@ -454,8 +510,8 @@ impl TextBuffer {
         let bracket_close_col = i;
         i += 1;
 
-        // Optional space after ']'
-        let prefix_end_col = if i < len && chars[i] == ' ' {
+        // Optional space or tab after ']'
+        let prefix_end_col = if i < len && (chars[i] == ' ' || chars[i] == '\t') {
             i + 1
         } else {
             i
@@ -469,6 +525,63 @@ impl TextBuffer {
             bracket_close_col,
             prefix_end_col,
         })
+    }
+
+    /// Fast zero-allocation task check directly on a RopeSlice
+    fn is_rope_slice_task_checked(slice: RopeSlice) -> Option<bool> {
+        let mut chars = slice.chars();
+        let mut c = chars.next()?;
+
+        // Leading whitespace
+        while c == ' ' || c == '\t' {
+            c = chars.next()?;
+        }
+
+        // Bullet marker: -, *, +, or digits followed by . or )
+        if c == '-' || c == '*' || c == '+' {
+            c = chars.next()?;
+        } else if c.is_ascii_digit() {
+            c = chars.next()?;
+            while c.is_ascii_digit() {
+                c = chars.next()?;
+            }
+            if c == '.' || c == ')' {
+                c = chars.next()?;
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        }
+
+        // Whitespace
+        if c != ' ' && c != '\t' {
+            return None;
+        }
+        while c == ' ' || c == '\t' {
+            c = chars.next()?;
+        }
+
+        // Open bracket '['
+        if c != '[' {
+            return None;
+        }
+
+        // Check character
+        c = chars.next()?;
+        let is_checked = match c {
+            ' ' => false,
+            'x' | 'X' => true,
+            _ => return None,
+        };
+
+        // Close bracket ']'
+        c = chars.next()?;
+        if c != ']' {
+            return None;
+        }
+
+        Some(is_checked)
     }
 
     /// Returns task information for the specified line if it is a task item
@@ -525,14 +638,15 @@ impl TextBuffer {
         false
     }
 
-    /// Returns (completed_tasks, total_tasks) if task items exist in the buffer
+    /// Returns (completed_tasks, total_tasks) if task items exist in the buffer.
+    /// Optimized with zero allocations per line for high-frequency status bar rendering.
     pub fn task_stats(&self) -> Option<(usize, usize)> {
         let mut total = 0;
         let mut completed = 0;
-        for i in 0..self.line_count() {
-            if let Some(info) = self.get_task_info(i) {
+        for line in self.rope.lines() {
+            if let Some(is_checked) = Self::is_rope_slice_task_checked(line) {
                 total += 1;
-                if info.is_checked {
+                if is_checked {
                     completed += 1;
                 }
             }
@@ -553,4 +667,105 @@ pub struct TaskItemInfo {
     pub check_char_col: usize,
     pub bracket_close_col: usize,
     pub prefix_end_col: usize,
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_task_parsing_edge_cases() {
+        // Standard dashes
+        let t1 = TextBuffer::parse_task_item("- [ ] Unchecked").unwrap();
+        assert!(!t1.is_checked);
+        assert_eq!(t1.marker_col, 0);
+
+        let t2 = TextBuffer::parse_task_item("- [x] Checked").unwrap();
+        assert!(t2.is_checked);
+
+        // Asterisks
+        let t3 = TextBuffer::parse_task_item("* [X] Uppercase X").unwrap();
+        assert!(t3.is_checked);
+
+        // Plus bullet
+        let t4 = TextBuffer::parse_task_item("+ [ ] Plus bullet").unwrap();
+        assert!(!t4.is_checked);
+
+        // Ordered lists
+        let t5 = TextBuffer::parse_task_item("1. [ ] First ordered").unwrap();
+        assert!(!t5.is_checked);
+
+        let t6 = TextBuffer::parse_task_item("12) [x] Paren ordered").unwrap();
+        assert!(t6.is_checked);
+
+        // Indentation
+        let t7 = TextBuffer::parse_task_item("    - [ ] Indented").unwrap();
+        assert_eq!(t7.marker_col, 4);
+
+        // Empty task line
+        let t8 = TextBuffer::parse_task_item("- [ ]").unwrap();
+        assert!(!t8.is_checked);
+
+        // Non-tasks
+        assert!(TextBuffer::parse_task_item("- Normal bullet").is_none());
+        assert!(TextBuffer::parse_task_item("[ ] No bullet").is_none());
+        assert!(TextBuffer::parse_task_item("1. Just a number").is_none());
+        assert!(TextBuffer::parse_task_item("- [?] Invalid check").is_none());
+    }
+
+    #[test]
+    fn test_task_stats_zero_allocation() {
+        let text = "# Tasks\n- [ ] Task A\n- [x] Task B\n* [x] Task C\n+ [ ] Task D\n1. [x] Task E\nNot a task\n";
+        let buf = TextBuffer::from_str(text);
+        assert_eq!(buf.task_stats(), Some((3, 5)));
+    }
+
+    #[test]
+    fn test_line_len_crlf_and_cr() {
+        let buf_crlf = TextBuffer::from_str("line1\r\nline2\r\n");
+        assert_eq!(buf_crlf.line_len(0), 5);
+        assert_eq!(buf_crlf.line_to_string(0), "line1");
+
+        let buf_cr = TextBuffer::from_str("mac1\rmac2\r");
+        assert_eq!(buf_cr.line_len(0), 4);
+        assert_eq!(buf_cr.line_to_string(0), "mac1");
+    }
+
+    #[test]
+    fn test_char_index_boundary_safety() {
+        let mut buf = TextBuffer::from_str("hello\nworld");
+        buf.cursor_line = 999;
+        buf.cursor_col = 999;
+        // Must not panic!
+        let idx = buf.char_index_at_cursor();
+        assert_eq!(idx, buf.rope.len_chars());
+    }
+
+    #[test]
+    fn test_delete_word_bounds_safety() {
+        let mut buf = TextBuffer::from_str("alpha beta gamma");
+        buf.cursor_col = 50; // past line length
+        buf.delete_word(); // must not panic
+        assert_eq!(buf.cursor_col, 11);
+    }
+
+    #[test]
+    fn test_insert_newline_indentation_cases() {
+        // 1. Enter at end of indented line -> preserves indent
+        let mut buf1 = TextBuffer::from_str("    hello");
+        buf1.cursor_col = 9;
+        buf1.insert_newline();
+        assert_eq!(buf1.line_to_string(0), "    hello");
+        assert_eq!(buf1.line_to_string(1), "    ");
+        assert_eq!(buf1.cursor_col, 4);
+
+        // 2. Enter at col 0 -> does not duplicate indent
+        let mut buf2 = TextBuffer::from_str("    hello");
+        buf2.cursor_col = 0;
+        buf2.insert_newline();
+        assert_eq!(buf2.line_to_string(0), "");
+        assert_eq!(buf2.line_to_string(1), "    hello");
+        assert_eq!(buf2.cursor_col, 0);
+    }
 }

@@ -34,6 +34,16 @@ enum OutputWidget {
 
 pub struct EditorView;
 
+struct PeerRenderContext<'a> {
+    scroll_left: usize,
+    visible_width: usize,
+    peers: &'a [&'a PeerInfo],
+    is_markdown: bool,
+    line_idx: usize,
+    cursor_line: usize,
+    cursor_col: usize,
+}
+
 impl EditorView {
     pub fn render(app: &App, frame: &mut Frame, area: Rect) {
         let is_focused = app.focus == FocusPane::Editor;
@@ -100,75 +110,82 @@ impl EditorView {
         let mut widget_line_ranges: Vec<(usize, usize)> = Vec::new();
 
         for b in &blocks {
-            if let Some(out) = &b.existing_output {
-                if !out.is_collapsed {
-                    let content_start = out.start_line + 1;
-                    let content_end = out.end_line;
-                    if content_end > scroll_top && content_start < scroll_top + visible_height && content_end > content_start {
-                        let start_y = content_start.saturating_sub(scroll_top);
-                        let end_y = content_end.min(scroll_top + visible_height).saturating_sub(scroll_top);
-                        if end_y > start_y {
-                            let rect = Rect::new(
-                                inner_area.x + gutter_width as u16,
-                                inner_area.y + start_y as u16,
-                                visible_width as u16,
-                                (end_y - start_y) as u16,
-                            );
+            if let Some(out) = &b.existing_output
+                && !out.is_collapsed
+            {
+                let content_start = out.start_line + 1;
+                let content_end = out.end_line;
+                if content_end > scroll_top && content_start < scroll_top + visible_height && content_end > content_start {
+                    let start_y = content_start.saturating_sub(scroll_top);
+                    let end_y = content_end.min(scroll_top + visible_height).saturating_sub(scroll_top);
+                    if end_y > start_y {
+                        let rect = Rect::new(
+                            inner_area.x + gutter_width as u16,
+                            inner_area.y + start_y as u16,
+                            visible_width as u16,
+                            (end_y - start_y) as u16,
+                        );
 
-                            if let Some(fleet) = app
-                                .fleet_states
-                                .get(&b.id)
-                                .or_else(|| b.name.as_ref().and_then(|n| app.fleet_states.get(n)))
-                                .cloned()
-                                .or_else(|| crate::mesh::FleetOutput::parse(&out.output_text))
-                            {
-                                output_widgets.push(OutputWidget::Fleet { rect, fleet });
+                        if let Some(fleet) = app
+                            .fleet_states
+                            .get(&b.id)
+                            .or_else(|| b.name.as_ref().and_then(|n| app.fleet_states.get(n)))
+                            .cloned()
+                            .or_else(|| crate::mesh::FleetOutput::parse(&out.output_text))
+                        {
+                            output_widgets.push(OutputWidget::Fleet { rect, fleet });
+                            widget_line_ranges.push((content_start, content_end));
+                        } else if out.format == crate::runner::BlockFormat::Sparkline {
+                            let chart_data = crate::chart::ChartData::parse(&out.output_text);
+                            if !chart_data.values.is_empty() {
+                                output_widgets.push(OutputWidget::Sparkline {
+                                    rect,
+                                    values: chart_data.values,
+                                    max_val: chart_data.max_value,
+                                });
                                 widget_line_ranges.push((content_start, content_end));
-                            } else if out.format == crate::runner::BlockFormat::Sparkline {
-                                let chart_data = crate::chart::ChartData::parse(&out.output_text);
-                                if !chart_data.values.is_empty() {
-                                    output_widgets.push(OutputWidget::Sparkline {
-                                        rect,
-                                        values: chart_data.values,
-                                        max_val: chart_data.max_value,
-                                    });
-                                    widget_line_ranges.push((content_start, content_end));
-                                }
-                            } else if out.format == crate::runner::BlockFormat::Chart {
-                                let chart_data = crate::chart::ChartData::parse(&out.output_text);
-                                if !chart_data.bars.is_empty() {
-                                    output_widgets.push(OutputWidget::BarChart {
-                                        rect,
-                                        bars: chart_data.bars,
-                                        max_val: chart_data.max_value,
-                                    });
-                                    widget_line_ranges.push((content_start, content_end));
-                                } else if !chart_data.values.is_empty() {
-                                    output_widgets.push(OutputWidget::Sparkline {
-                                        rect,
-                                        values: chart_data.values,
-                                        max_val: chart_data.max_value,
-                                    });
-                                    widget_line_ranges.push((content_start, content_end));
-                                }
-                            } else if out.format == crate::runner::BlockFormat::Table
-                                || crate::table::TableData::parse(&out.output_text).is_some()
-                            {
-                                let tbl = app
-                                    .table_states
-                                    .get(&b.id)
-                                    .or_else(|| b.name.as_ref().and_then(|n| app.table_states.get(n)))
-                                    .cloned()
-                                    .or_else(|| crate::table::TableData::parse(&out.output_text));
-                                if let Some(t) = tbl {
-                                    output_widgets.push(OutputWidget::Table {
-                                        rect,
-                                        headers: t.headers,
-                                        rows: t.rows,
-                                        selected_row: t.selected_row,
-                                    });
-                                    widget_line_ranges.push((content_start, content_end));
-                                }
+                            }
+                        } else if out.format == crate::runner::BlockFormat::Chart {
+                            let chart_data = crate::chart::ChartData::parse(&out.output_text);
+                            if !chart_data.bars.is_empty() {
+                                output_widgets.push(OutputWidget::BarChart {
+                                    rect,
+                                    bars: chart_data.bars,
+                                    max_val: chart_data.max_value,
+                                });
+                                widget_line_ranges.push((content_start, content_end));
+                            } else if !chart_data.values.is_empty() {
+                                output_widgets.push(OutputWidget::Sparkline {
+                                    rect,
+                                    values: chart_data.values,
+                                    max_val: chart_data.max_value,
+                                });
+                                widget_line_ranges.push((content_start, content_end));
+                            }
+                        } else {
+                            let tbl = app
+                                .table_states
+                                .get(&b.id)
+                                .or_else(|| b.name.as_ref().and_then(|n| app.table_states.get(n)))
+                                .cloned()
+                                .or_else(|| {
+                                    if out.format == crate::runner::BlockFormat::Table
+                                        || out.output_text.contains(',')
+                                        || out.output_text.contains('|')
+                                    {
+                                        crate::table::TableData::parse(&out.output_text)
+                                    } else {
+                                        None
+                                    }
+                                });
+                            if let Some(t) = tbl {
+                                output_widgets.push(OutputWidget::Table {
+                                    rect,
+                                    headers: t.headers,
+                                    rows: t.rows,
+                                    selected_row: t.selected_row,
+                                });
+                                widget_line_ranges.push((content_start, content_end));
                             }
                         }
                     }
@@ -182,15 +199,16 @@ impl EditorView {
         let mut inside_output = false;
         let mut is_output_collapsed = false;
 
-        // First pass: determine state at scroll_top
+        // First pass: determine state at scroll_top without unnecessary string allocations
         for i in 0..scroll_top {
-            let line = app.editor.buffer.line_to_string(i);
-            let trimmed = line.trim();
-            if trimmed.starts_with("```output") {
+            let line_slice = app.editor.buffer.rope.line(i);
+            let chars = line_slice.chars().skip_while(|c| c.is_whitespace() && *c != '\n');
+            if chars.clone().take(9).eq("```output".chars()) {
                 inside_output = true;
                 inside_code = false;
-                is_output_collapsed = trimmed.contains("[collapsed]");
-            } else if trimmed.starts_with("```") {
+                let line_str = line_slice.to_string();
+                is_output_collapsed = line_str.contains("[collapsed]");
+            } else if chars.take(3).eq("```".chars()) {
                 if inside_output || inside_code {
                     inside_output = false;
                     inside_code = false;
@@ -293,46 +311,20 @@ impl EditorView {
             let cursor_line = app.editor.buffer.cursor_line;
             let cursor_col = app.editor.buffer.cursor_col;
 
-            if inside_output {
-                let content_spans = Self::render_content_with_peers(
-                    &visible_content,
+            let is_markdown = !inside_output && !inside_code;
+            let content_spans = Self::render_content_with_peers(
+                &visible_content,
+                PeerRenderContext {
                     scroll_left,
                     visible_width,
-                    &peers_on_line,
-                    Theme::MD_OUTPUT_LINE,
-                    false,
+                    peers: &peers_on_line,
+                    is_markdown,
                     line_idx,
                     cursor_line,
                     cursor_col,
-                );
-                spans.extend(content_spans);
-            } else if inside_code {
-                let content_spans = Self::render_content_with_peers(
-                    &visible_content,
-                    scroll_left,
-                    visible_width,
-                    &peers_on_line,
-                    Theme::MD_CODE_LINE,
-                    false,
-                    line_idx,
-                    cursor_line,
-                    cursor_col,
-                );
-                spans.extend(content_spans);
-            } else {
-                let content_spans = Self::render_content_with_peers(
-                    &visible_content,
-                    scroll_left,
-                    visible_width,
-                    &peers_on_line,
-                    Theme::SIDEBAR_ITEM,
-                    true,
-                    line_idx,
-                    cursor_line,
-                    cursor_col,
-                );
-                spans.extend(content_spans);
-            }
+                },
+            );
+            spans.extend(content_spans);
 
             rendered_lines.push(Line::from(spans));
         }
@@ -666,18 +658,11 @@ impl EditorView {
 
     fn render_content_with_peers(
         content: &str,
-        scroll_left: usize,
-        visible_width: usize,
-        peers: &[&PeerInfo],
-        _default_style: Style,
-        is_markdown: bool,
-        line_idx: usize,
-        cursor_line: usize,
-        cursor_col: usize,
+        ctx: PeerRenderContext,
     ) -> Vec<Span<'static>> {
-        if peers.is_empty() {
-            if is_markdown {
-                return Self::parse_markdown_spans_with_focus(content, line_idx, cursor_line, cursor_col);
+        if ctx.peers.is_empty() {
+            if ctx.is_markdown {
+                return Self::parse_markdown_spans_with_focus(content, ctx.line_idx, ctx.cursor_line, ctx.cursor_col);
             } else {
                 return crate::ansi::parse_ansi_spans(content);
             }
@@ -688,8 +673,8 @@ impl EditorView {
         let line_len = chars.len();
 
         let mut current_col = 0;
-        for peer in peers {
-            let p_col = peer.cursor_col.saturating_sub(scroll_left);
+        for peer in ctx.peers {
+            let p_col = peer.cursor_col.saturating_sub(ctx.scroll_left);
             let color = peer_color(peer.color_index);
             let badge_style = Style::default().bg(color).fg(Color::Black).add_modifier(Modifier::BOLD);
             let cursor_char_style = Style::default().bg(color).fg(Color::Black).add_modifier(Modifier::BOLD);
@@ -698,8 +683,8 @@ impl EditorView {
                 let chunk_end = p_col.min(line_len);
                 if chunk_end > current_col {
                     let chunk: String = chars[current_col..chunk_end].iter().collect();
-                    if is_markdown {
-                        result.extend(Self::parse_markdown_spans_with_focus(&chunk, line_idx, cursor_line, cursor_col));
+                    if ctx.is_markdown {
+                        result.extend(Self::parse_markdown_spans_with_focus(&chunk, ctx.line_idx, ctx.cursor_line, ctx.cursor_col));
                     } else {
                         result.extend(crate::ansi::parse_ansi_spans(&chunk));
                     }
@@ -722,17 +707,17 @@ impl EditorView {
         // Remainder of line
         if current_col < line_len {
             let chunk: String = chars[current_col..].iter().collect();
-            if is_markdown {
-                result.extend(Self::parse_markdown_spans_with_focus(&chunk, line_idx, cursor_line, cursor_col));
+            if ctx.is_markdown {
+                result.extend(Self::parse_markdown_spans_with_focus(&chunk, ctx.line_idx, ctx.cursor_line, ctx.cursor_col));
             } else {
                 result.extend(crate::ansi::parse_ansi_spans(&chunk));
             }
         }
 
         // If any peers are past the end of the line
-        for peer in peers {
-            let p_col = peer.cursor_col.saturating_sub(scroll_left);
-            if p_col > line_len && p_col < visible_width {
+        for peer in ctx.peers {
+            let p_col = peer.cursor_col.saturating_sub(ctx.scroll_left);
+            if p_col > line_len && p_col < ctx.visible_width {
                 let color = peer_color(peer.color_index);
                 let badge_style = Style::default().bg(color).fg(Color::Black).add_modifier(Modifier::BOLD);
                 result.push(Span::styled(format!(" [{}]▌", peer.name), badge_style));

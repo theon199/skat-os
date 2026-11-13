@@ -5,8 +5,20 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::LazyLock;
 
 pub const REDACTED: &str = "[REDACTED]";
+
+static NONCE_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+static VAULT_INTERPOLATE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\{\{\s*(?:secrets?)[.:]([a-zA-Z0-9_./:#=-]+)\s*\}\}").unwrap()
+});
+
+static FRONTMATTER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?s)^---\s*\n(.*?)\n---").unwrap()
+});
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SecretSource {
@@ -75,17 +87,17 @@ impl SecretVault {
     /// Loads `.env.vault` or `.env` file from a directory if it exists
     pub fn load_env_vault_from_dir(&mut self, dir: &Path) {
         let env_vault = dir.join(".env.vault");
-        if env_vault.is_file() {
-            if let Ok(content) = std::fs::read_to_string(&env_vault) {
-                self.parse_and_load_env_content(&content);
-            }
+        if env_vault.is_file()
+            && let Ok(content) = std::fs::read_to_string(&env_vault)
+        {
+            self.parse_and_load_env_content(&content);
         }
 
         let env_file = dir.join(".env");
-        if env_file.is_file() {
-            if let Ok(content) = std::fs::read_to_string(&env_file) {
-                self.parse_and_load_env_content(&content);
-            }
+        if env_file.is_file()
+            && let Ok(content) = std::fs::read_to_string(&env_file)
+        {
+            self.parse_and_load_env_content(&content);
         }
     }
 
@@ -148,11 +160,11 @@ impl SecretVault {
                 self.insert(key_clean, val.clone());
                 return Some(val);
             }
-        } else if let Some(rest) = key_clean.strip_prefix("keyring:") {
-            if let Some(val) = Self::resolve_keyring_cli(rest) {
-                self.insert(key_clean, val.clone());
-                return Some(val);
-            }
+        } else if let Some(rest) = key_clean.strip_prefix("keyring:")
+            && let Some(val) = Self::resolve_keyring_cli(rest)
+        {
+            self.insert(key_clean, val.clone());
+            return Some(val);
         }
 
         None
@@ -211,10 +223,10 @@ impl SecretVault {
         if output.status.success() {
             let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if let Some(f) = field {
-                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&s) {
-                    if let Some(val) = json.get(f).and_then(|v| v.as_str()) {
-                        return Some(val.to_string());
-                    }
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&s)
+                    && let Some(val) = json.get(f).and_then(|v| v.as_str())
+                {
+                    return Some(val.to_string());
                 }
             } else if !s.is_empty() {
                 return Some(s);
@@ -280,11 +292,12 @@ impl SecretVault {
         let key_bytes = hasher.finalize();
         let key = Key::from(key_bytes);
 
-        // Generate 12-byte deterministic/timestamped nonce
+        // Generate 12-byte monotonic/timestamped nonce to prevent nonce reuse
         let mut nonce_bytes = [0u8; 12];
         let now = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(1234567890);
         nonce_bytes[..8].copy_from_slice(&now.to_le_bytes());
-        nonce_bytes[8..12].copy_from_slice(&[0x53, 0x4B, 0x41, 0x54]); // 'SKAT'
+        let counter = NONCE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        nonce_bytes[8..12].copy_from_slice(&counter.to_le_bytes());
 
         let cipher = ChaCha20Poly1305::new(&key);
         let nonce = Nonce::from(nonce_bytes);
@@ -335,23 +348,20 @@ impl SecretVault {
 
     /// Loads encrypted secrets from document frontmatter if present
     pub fn load_from_frontmatter(&mut self, content: &str, passphrase: &str) -> anyhow::Result<usize> {
-        let frontmatter_re = Regex::new(r"(?s)^---\s*\n(.*?)\n---").unwrap();
-        if let Some(caps) = frontmatter_re.captures(content) {
-            let yaml_str = &caps[1];
-            if let Ok(yaml) = serde_yaml::from_str::<serde_yaml::Value>(yaml_str) {
-                if let Some(sec_val) = yaml.get("secrets") {
-                    let nonce_opt = sec_val.get("nonce").and_then(|v| v.as_str());
-                    let cipher_opt = sec_val.get("ciphertext").or_else(|| sec_val.get("encrypted")).and_then(|v| v.as_str());
+        if let Some(caps) = FRONTMATTER_RE.captures(content)
+            && let Ok(yaml) = serde_yaml::from_str::<serde_yaml::Value>(&caps[1])
+            && let Some(sec_val) = yaml.get("secrets")
+        {
+            let nonce_opt = sec_val.get("nonce").and_then(|v| v.as_str());
+            let cipher_opt = sec_val.get("ciphertext").or_else(|| sec_val.get("encrypted")).and_then(|v| v.as_str());
 
-                    if let (Some(nonce_hex), Some(cipher_hex)) = (nonce_opt, cipher_opt) {
-                        let decrypted = Self::decrypt_secrets_payload(nonce_hex, cipher_hex, passphrase)?;
-                        let count = decrypted.len();
-                        for (k, v) in decrypted {
-                            self.insert(k, v);
-                        }
-                        return Ok(count);
-                    }
+            if let (Some(nonce_hex), Some(cipher_hex)) = (nonce_opt, cipher_opt) {
+                let decrypted = Self::decrypt_secrets_payload(nonce_hex, cipher_hex, passphrase)?;
+                let count = decrypted.len();
+                for (k, v) in decrypted {
+                    self.insert(k, v);
                 }
+                return Ok(count);
             }
         }
         Ok(0)
@@ -365,8 +375,7 @@ impl SecretVault {
 
     /// Interpolates secrets in a command string, checking an optional fallback map (e.g. runner env_vars).
     pub fn interpolate_secrets_with_fallback(&mut self, code: &str, fallback_envs: Option<&HashMap<String, String>>) -> String {
-        let re = Regex::new(r"\{\{\s*(?:secrets?)[.:]([a-zA-Z0-9_./:#=-]+)\s*\}\}").unwrap();
-        re.replace_all(code, |caps: &regex::Captures| {
+        VAULT_INTERPOLATE_RE.replace_all(code, |caps: &regex::Captures| {
             let key = &caps[1];
             if let Some(val) = self.resolve(key) {
                 val
@@ -385,11 +394,16 @@ impl SecretVault {
     }
 
     /// Masks all known sensitive values in the given text, replacing them with `[REDACTED]`.
+    /// Zero-leak guarantee: values are sorted descending by length so longer substrings
+    /// are replaced before shorter substrings, preventing partial-leak exposure.
     pub fn mask(&self, text: &str) -> String {
         let mut masked = text.to_string();
-        for secret_val in &self.sensitive_values {
-            if secret_val.len() >= 3 && masked.contains(secret_val) {
-                masked = masked.replace(secret_val, REDACTED);
+        let mut values: Vec<&String> = self.sensitive_values.iter().filter(|v| v.len() >= 3).collect();
+        values.sort_by_key(|b| std::cmp::Reverse(b.len()));
+
+        for secret_val in values {
+            if masked.contains(secret_val.as_str()) {
+                masked = masked.replace(secret_val.as_str(), REDACTED);
             }
         }
         masked
@@ -431,7 +445,7 @@ mod tests {
         );
 
         // Verify output masking
-        let simulated_output = format!("Connected using password postgresP@ssw0rd999, key is AKIA-SUPER-SECRET-XYZ-12345.");
+        let simulated_output = "Connected using password postgresP@ssw0rd999, key is AKIA-SUPER-SECRET-XYZ-12345.".to_string();
         let masked = vault.mask(&simulated_output);
         assert_eq!(masked, "Connected using password [REDACTED], key is [REDACTED].");
         assert!(!masked.contains("postgresP@ssw0rd999"));
@@ -483,5 +497,30 @@ DATABASE_URL=postgres://user:secret123@db.prod.internal:5432/main
         let loaded = vault.load_from_frontmatter(&doc, "pass123").unwrap();
         assert_eq!(loaded, 1);
         assert_eq!(vault.resolve("DEPLOY_TOKEN"), Some("deploy_token_abc_xyz".to_string()));
+    }
+
+    #[test]
+    fn test_zero_leak_substring_masking() {
+        let mut vault = SecretVault::new();
+        // Insert both a long secret and a substring that occurs within it
+        vault.insert("SHORT_TOKEN", "pass");
+        vault.insert("LONG_TOKEN", "password_12345_secure");
+
+        let text = "User logged in with password_12345_secure and pass.";
+        let masked = vault.mask(text);
+        // The long token should not be partially masked into "[REDACTED]word_12345_secure"
+        assert_eq!(masked, "User logged in with [REDACTED] and [REDACTED].");
+        assert!(!masked.contains("password_12345_secure"));
+        assert!(!masked.contains("word_12345_secure"));
+    }
+
+    #[test]
+    fn test_unique_nonce_generation() {
+        let mut map = HashMap::new();
+        map.insert("KEY".to_string(), "VALUE".to_string());
+
+        let (nonce1, _) = SecretVault::encrypt_secrets_payload(&map, "pass").unwrap();
+        let (nonce2, _) = SecretVault::encrypt_secrets_payload(&map, "pass").unwrap();
+        assert_ne!(nonce1, nonce2, "Consecutive nonces must be strictly distinct");
     }
 }

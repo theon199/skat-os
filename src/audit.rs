@@ -28,6 +28,7 @@ pub struct AuditEntry {
 
 impl AuditEntry {
     /// Computes the SHA-256 hash of this audit entry given its fields and previous hash
+    #[allow(clippy::too_many_arguments)]
     pub fn compute_hash(
         prev_hash: &str,
         timestamp: &str,
@@ -107,7 +108,7 @@ impl AuditRecorder {
         let reader = BufReader::new(file);
         let mut last_valid_hash = None;
 
-        for line in reader.lines().flatten() {
+        for line in reader.lines().map_while(Result::ok) {
             let trimmed = line.trim();
             if trimmed.is_empty() {
                 continue;
@@ -121,6 +122,7 @@ impl AuditRecorder {
     }
 
     /// Records an execution in the immutable audit log journal
+    #[allow(clippy::too_many_arguments)]
     pub fn record(
         &mut self,
         doc_path: &str,
@@ -142,6 +144,8 @@ impl AuditRecorder {
             fastrand_hex()
         );
 
+        let output_preview_truncated: String = output_preview.chars().take(500).collect();
+
         let prev_hash = self.last_hash.clone();
         let hash = AuditEntry::compute_hash(
             &prev_hash,
@@ -155,7 +159,7 @@ impl AuditRecorder {
             &params,
             exit_code,
             duration_ms,
-            output_preview,
+            &output_preview_truncated,
         );
 
         let entry = AuditEntry {
@@ -169,7 +173,7 @@ impl AuditRecorder {
             params,
             exit_code,
             duration_ms,
-            output_preview: output_preview.chars().take(500).collect(),
+            output_preview: output_preview_truncated,
             prev_hash,
             hash: hash.clone(),
         };
@@ -184,6 +188,7 @@ impl AuditRecorder {
         let json_line = serde_json::to_string(&entry)?;
         writeln!(file, "{}", json_line)?;
         file.flush()?;
+        file.sync_data().ok();
 
         self.last_hash = hash;
         Ok(entry)
@@ -345,5 +350,34 @@ mod tests {
 
         // Verification should now fail!
         assert!(!recorder.verify_integrity().unwrap());
+    }
+
+    #[test]
+    fn test_audit_large_output_hash_integrity() {
+        let tmp = tempdir().unwrap();
+        let mut recorder = AuditRecorder::new(tmp.path()).unwrap();
+
+        // Large output exceeding the 500 character preview truncation boundary
+        let huge_output = "A".repeat(4096);
+        recorder
+            .record(
+                "big_doc.md",
+                "big_block",
+                "Charlie",
+                vec!["node-1".to_string()],
+                "cat large_file.log",
+                HashMap::new(),
+                0,
+                55,
+                &huge_output,
+            )
+            .unwrap();
+
+        // Must verify integrity without mismatch between recorded and stored preview
+        assert!(recorder.verify_integrity().unwrap());
+
+        let entries = recorder.load_entries().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].output_preview.len(), 500);
     }
 }

@@ -359,13 +359,16 @@ async fn test_multi_peer_approval_workflow_over_tcp() {
     let mut approved_consensus = false;
     let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
     while tokio::time::Instant::now() < deadline {
-        if let Some(msg) = bob.try_recv() {
-            if let CollabMessage::ApprovalStatus { block_id, approvals_count, approved, .. } = msg {
-                if block_id == "block_0" && approvals_count == 2 && approved {
-                    approved_consensus = true;
-                    break;
-                }
+        while let Some(msg) = bob.try_recv() {
+            if let CollabMessage::ApprovalStatus { block_id, approvals_count, approved, .. } = msg
+                && block_id == "block_0" && approvals_count == 2 && approved
+            {
+                approved_consensus = true;
+                break;
             }
+        }
+        if approved_consensus {
+            break;
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
@@ -454,3 +457,118 @@ async fn test_command_palette_audit_log_action() {
     // App mode must switch to AuditLogModal
     assert!(matches!(app.mode, AppMode::AuditLogModal { .. }));
 }
+
+#[test]
+fn test_guard_enhanced_destruction_detection_regression() {
+    use skat_os::guard::{ApprovalConsensus, DangerLevel, StaticAnalyzer};
+
+    // 1. Reversed flags: rm -fr /
+    let res1 = StaticAnalyzer::analyze("rm -fr /");
+    assert!(res1.is_destructive);
+    assert_eq!(res1.danger_level, DangerLevel::Critical);
+
+    // 2. rm with --no-preserve-root
+    let res2 = StaticAnalyzer::analyze("rm -rf --no-preserve-root /var/log");
+    assert!(res2.is_destructive);
+    assert_eq!(res2.danger_level, DangerLevel::Critical);
+
+    // 3. Chmod uppercase and lowercase recursive
+    let res3 = StaticAnalyzer::analyze("chmod -R 777 /");
+    assert!(res3.is_destructive);
+    let res4 = StaticAnalyzer::analyze("chmod -r 777 /");
+    assert!(res4.is_destructive);
+
+    // 4. SQL drop schema
+    let res5 = StaticAnalyzer::analyze("DROP SCHEMA IF EXISTS production CASCADE;");
+    assert!(res5.is_destructive);
+
+    // 5. Consensus helper methods
+    let mut consensus = ApprovalConsensus::new("b1".to_string(), "reboot".to_string(), 2);
+    assert!(!consensus.has_approved("Alice"));
+    // First approval (1 of 2): consensus not met yet
+    assert!(!consensus.add_approval("Alice".to_string()));
+    assert!(consensus.has_approved("Alice"));
+    assert_eq!(consensus.current_count(), 1);
+    assert!(!consensus.is_approved());
+
+    // Second approval (2 of 2): consensus met!
+    assert!(consensus.add_approval("Bob".to_string()));
+    assert!(consensus.has_approved("Bob"));
+    assert_eq!(consensus.current_count(), 2);
+    assert!(consensus.is_approved());
+
+    // remove approval: consensus no longer held
+    assert!(!consensus.remove_approval("Alice"));
+    assert!(!consensus.has_approved("Alice"));
+    assert_eq!(consensus.current_count(), 1);
+    assert!(!consensus.is_approved());
+}
+
+#[test]
+fn test_vault_zero_leak_substring_masking_regression() {
+    use skat_os::vault::SecretVault;
+
+    let mut vault = SecretVault::new();
+    vault.register_sensitive_value("secret");
+    vault.register_sensitive_value("secret_super_token_999");
+
+    let log = "Connecting with token secret_super_token_999 and basic secret here.";
+    let masked = vault.mask(log);
+
+    // Longest substring must be masked first:
+    // Should be: "Connecting with token [REDACTED] and basic [REDACTED] here."
+    // NOT: "Connecting with token [REDACTED]_super_token_999..."
+    assert_eq!(
+        masked,
+        "Connecting with token [REDACTED] and basic [REDACTED] here."
+    );
+    assert!(!masked.contains("_super_token_999"));
+}
+
+#[test]
+fn test_audit_large_output_hash_chain_consistency_regression() {
+    use skat_os::audit::AuditRecorder;
+    use std::collections::HashMap;
+
+    let temp_dir = tempdir().unwrap();
+    let mut audit = AuditRecorder::new(temp_dir.path()).unwrap();
+
+    // Generate output far exceeding 500 characters
+    let large_output = "SUCCESS-DATA-CHUNK-".repeat(100); // 1900 chars
+    assert!(large_output.len() > 500);
+
+    audit
+        .record(
+            "runbook.md",
+            "block_0",
+            "Alice",
+            vec!["host1.local".to_string()],
+            "cat /var/log/huge.log",
+            HashMap::new(),
+            0,
+            120,
+            &large_output,
+        )
+        .unwrap();
+
+    audit
+        .record(
+            "runbook.md",
+            "block_1",
+            "Bob",
+            vec!["host2.local".to_string()],
+            "cat /var/log/another.log",
+            HashMap::new(),
+            0,
+            95,
+            &large_output,
+        )
+        .unwrap();
+
+    let is_valid = audit.verify_integrity().unwrap();
+    assert!(is_valid, "Audit hash chain must remain valid for >500 character outputs");
+
+    let entries = audit.load_entries().unwrap();
+    assert_eq!(entries.len(), 2);
+}
+

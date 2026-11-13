@@ -52,7 +52,7 @@ pub fn process_terminal_stream(raw: &str) -> String {
             } else if chars.peek() == Some(&']') {
                 // OSC sequence
                 seq.push(chars.next().unwrap());
-                while let Some(next_c) = chars.next() {
+                for next_c in chars.by_ref() {
                     seq.push(next_c);
                     if next_c == '\x07' || (next_c == '\\' && seq.ends_with("\x1b\\")) {
                         break;
@@ -166,10 +166,16 @@ fn apply_sgr_params(param_str: &str, style: &mut Style) {
         return;
     }
 
-    let params: Vec<u32> = param_str
-        .split(';')
-        .filter_map(|s| if s.is_empty() { Some(0) } else { s.parse::<u32>().ok() })
-        .collect();
+    let mut params_buf = [0u32; 16];
+    let mut param_count = 0;
+    for s in param_str.split(';') {
+        if param_count < params_buf.len() {
+            let val = if s.is_empty() { 0 } else { s.parse::<u32>().unwrap_or(0) };
+            params_buf[param_count] = val;
+            param_count += 1;
+        }
+    }
+    let params = &params_buf[..param_count];
 
     let mut i = 0;
     while i < params.len() {
@@ -186,7 +192,9 @@ fn apply_sgr_params(param_str: &str, style: &mut Style) {
             22 => *style = style.remove_modifier(Modifier::BOLD | Modifier::DIM),
             23 => *style = style.remove_modifier(Modifier::ITALIC),
             24 => *style = style.remove_modifier(Modifier::UNDERLINED),
+            25 => *style = style.remove_modifier(Modifier::RAPID_BLINK),
             27 => *style = style.remove_modifier(Modifier::REVERSED),
+            28 => *style = style.remove_modifier(Modifier::HIDDEN),
             29 => *style = style.remove_modifier(Modifier::CROSSED_OUT),
 
             // Standard Foreground Colors (30-37)
@@ -232,52 +240,36 @@ fn apply_sgr_params(param_str: &str, style: &mut Style) {
             107 => *style = style.bg(Color::White),
 
             // Extended Foreground (38;5;n or 38;2;r;g;b)
-            38 => {
-                if i + 1 < params.len() {
-                    match params[i + 1] {
-                        5 => {
-                            if i + 2 < params.len() {
-                                *style = style.fg(Color::Indexed(params[i + 2] as u8));
-                                i += 2;
-                            }
-                        }
-                        2 => {
-                            if i + 4 < params.len() {
-                                let r = params[i + 2] as u8;
-                                let g = params[i + 3] as u8;
-                                let b = params[i + 4] as u8;
-                                *style = style.fg(Color::Rgb(r, g, b));
-                                i += 4;
-                            }
-                        }
-                        _ => {}
-                    }
+            38 => match params.get(i + 1) {
+                Some(5) if i + 2 < params.len() => {
+                    *style = style.fg(Color::Indexed(params[i + 2] as u8));
+                    i += 2;
                 }
-            }
+                Some(2) if i + 4 < params.len() => {
+                    let r = params[i + 2] as u8;
+                    let g = params[i + 3] as u8;
+                    let b = params[i + 4] as u8;
+                    *style = style.fg(Color::Rgb(r, g, b));
+                    i += 4;
+                }
+                _ => {}
+            },
 
             // Extended Background (48;5;n or 48;2;r;g;b)
-            48 => {
-                if i + 1 < params.len() {
-                    match params[i + 1] {
-                        5 => {
-                            if i + 2 < params.len() {
-                                *style = style.bg(Color::Indexed(params[i + 2] as u8));
-                                i += 2;
-                            }
-                        }
-                        2 => {
-                            if i + 4 < params.len() {
-                                let r = params[i + 2] as u8;
-                                let g = params[i + 3] as u8;
-                                let b = params[i + 4] as u8;
-                                *style = style.bg(Color::Rgb(r, g, b));
-                                i += 4;
-                            }
-                        }
-                        _ => {}
-                    }
+            48 => match params.get(i + 1) {
+                Some(5) if i + 2 < params.len() => {
+                    *style = style.bg(Color::Indexed(params[i + 2] as u8));
+                    i += 2;
                 }
-            }
+                Some(2) if i + 4 < params.len() => {
+                    let r = params[i + 2] as u8;
+                    let g = params[i + 3] as u8;
+                    let b = params[i + 4] as u8;
+                    *style = style.bg(Color::Rgb(r, g, b));
+                    i += 4;
+                }
+                _ => {}
+            },
 
             _ => {}
         }
@@ -341,5 +333,42 @@ mod tests {
         assert_eq!(spans.len(), 1);
         assert_eq!(spans[0].content, "BlueText");
         assert_eq!(spans[0].style, Style::default().fg(Color::Blue));
+    }
+
+    #[test]
+    fn test_parse_bg_colors_and_modifiers() {
+        let input = "\x1b[48;5;42mBg256\x1b[0m \x1b[48;2;10;20;30mBgRGB\x1b[0m \x1b[5mBlink\x1b[25mNoBlink\x1b[8mHidden\x1b[28mVisible";
+        let spans = parse_ansi_spans(input);
+        assert_eq!(spans[0].content, "Bg256");
+        assert_eq!(spans[0].style, Style::default().bg(Color::Indexed(42)));
+
+        assert_eq!(spans[2].content, "BgRGB");
+        assert_eq!(spans[2].style, Style::default().bg(Color::Rgb(10, 20, 30)));
+
+        assert_eq!(spans[4].content, "Blink");
+        assert!(spans[4].style.add_modifier.contains(Modifier::RAPID_BLINK));
+
+        assert_eq!(spans[5].content, "NoBlink");
+        assert!(!spans[5].style.add_modifier.contains(Modifier::RAPID_BLINK));
+
+        assert_eq!(spans[6].content, "Hidden");
+        assert!(spans[6].style.add_modifier.contains(Modifier::HIDDEN));
+
+        assert_eq!(spans[7].content, "Visible");
+        assert!(!spans[7].style.add_modifier.contains(Modifier::HIDDEN));
+    }
+
+    #[test]
+    fn test_parse_empty_sgr_params() {
+        let input = "\x1b[31mRed\x1b[mReset\x1b[32mGreen\x1b[;mReset2";
+        let spans = parse_ansi_spans(input);
+        assert_eq!(spans[0].content, "Red");
+        assert_eq!(spans[0].style, Style::default().fg(Color::Red));
+        assert_eq!(spans[1].content, "Reset");
+        assert_eq!(spans[1].style, Style::default());
+        assert_eq!(spans[2].content, "Green");
+        assert_eq!(spans[2].style, Style::default().fg(Color::Green));
+        assert_eq!(spans[3].content, "Reset2");
+        assert_eq!(spans[3].style, Style::default());
     }
 }

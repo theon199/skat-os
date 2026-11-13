@@ -1237,5 +1237,140 @@ fn test_workspace_path_expansion() {
     }
 }
 
+#[test]
+fn test_extended_task_syntax_and_stats_regression() {
+    let doc = "\
+- [ ] dash task
+* [ ] star task
++ [x] plus task
+1. [ ] ordered dot task
+2) [x] ordered paren task
+\t- [ ] tab indented task
+- [ ] 
+";
+    let mut buf = TextBuffer::from_str(doc);
+    assert_eq!(buf.task_stats(), Some((2, 7)));
+
+    // Toggle line 0 (- [ ]) -> (- [x])
+    assert_eq!(buf.toggle_task_at_line(0), Some(true));
+    assert_eq!(buf.line_to_string(0), "- [x] dash task");
+
+    // Toggle line 2 (+ [x]) -> (+ [ ])
+    assert_eq!(buf.toggle_task_at_line(2), Some(false));
+    assert_eq!(buf.line_to_string(2), "+ [ ] plus task");
+
+    // Toggle line 3 (1. [ ]) -> (1. [x])
+    assert_eq!(buf.toggle_task_at_line(3), Some(true));
+    assert_eq!(buf.line_to_string(3), "1. [x] ordered dot task");
+
+    // Toggle line 4 (2) [x]) -> (2) [ ])
+    assert_eq!(buf.toggle_task_at_line(4), Some(false));
+    assert_eq!(buf.line_to_string(4), "2) [ ] ordered paren task");
+
+    assert_eq!(buf.task_stats(), Some((2, 7)));
+}
+
+#[test]
+fn test_chart_unit_support_and_clamped_metrics_regression() {
+    use skat_os::chart::ChartData;
+
+    // Test units: ms, MB, KB, %
+    let stream_with_units = "\
+latency: 125ms
+memory: 512MB
+throughput: 34KB
+error_rate: 0%
+loss: -10%
+";
+    let chart = ChartData::parse(stream_with_units);
+    assert_eq!(chart.bars.len(), 5);
+    assert_eq!(chart.bars[0], ("latency".to_string(), 125));
+    assert_eq!(chart.bars[1], ("memory".to_string(), 512));
+    assert_eq!(chart.bars[2], ("throughput".to_string(), 34));
+    assert_eq!(chart.bars[3], ("error_rate".to_string(), 0));
+    assert_eq!(chart.bars[4], ("loss".to_string(), 0)); // clamped negative value
+
+    // Test structured JSON metric array
+    let json_stream = r#"[{"label": "cpu", "value": 45}, {"name": "mem", "val": 88}]"#;
+    let json_chart = ChartData::parse(json_stream);
+    assert_eq!(json_chart.values, vec![45, 88]);
+    assert_eq!(json_chart.max_value, 88);
+}
+
+#[test]
+fn test_form_empty_parameter_values_regression() {
+    use skat_os::form::FormParser;
+
+    let line = "Configure tag: {{param:input:TAG=}} and env: {{param:select:ENV=prod|staging|dev}}";
+    let params = FormParser::parse_line(0, line);
+    assert_eq!(params.len(), 2);
+    assert_eq!(params[0].name, "TAG");
+    assert_eq!(params[0].value, "");
+
+    let doc = "Tag is: {{param:input:TAG=}}\n";
+    let mut buf = TextBuffer::from_str(doc);
+    FormParser::update_param_in_buffer(&mut buf, "TAG", "v1.2.3");
+    assert_eq!(buf.get_text(), "Tag is: {{param:input:TAG=v1.2.3}}\n");
+}
+
+#[test]
+fn test_runner_variable_interpolation_colons_and_dots_regression() {
+    use std::collections::HashMap;
+
+    let mut params = HashMap::new();
+    params.insert("REGION".to_string(), "us-east-1".to_string());
+    params.insert("HOST".to_string(), "prod.server".to_string());
+
+    let template = "curl http://{{param.HOST}}:8080/deploy?region={{param:REGION}}&r2={{params.REGION}}";
+    let interpolated = Runner::interpolate_variables_with_context(
+        template,
+        &HashMap::new(),
+        &params,
+        &HashMap::new(),
+    );
+    assert_eq!(
+        interpolated,
+        "curl http://prod.server:8080/deploy?region=us-east-1&r2=us-east-1"
+    );
+}
+
+#[test]
+fn test_table_array_of_arrays_bounds_safety_regression() {
+    use skat_os::table::TableData;
+
+    // Ragged rows
+    let json_ragged = r#"[
+        ["col1", "col2", "col3"],
+        ["val1"],
+        ["valA", "valB", "valC", "valD"]
+    ]"#;
+    let table = TableData::parse(json_ragged).expect("Should parse ragged array of arrays");
+    assert_eq!(table.headers, vec!["col1", "col2", "col3"]);
+    assert_eq!(table.rows.len(), 2);
+    // Row 0 aligned to 3 headers
+    assert_eq!(table.rows[0], vec!["val1", "", ""]);
+    // Row 1 aligned to 3 headers (truncated extra)
+    assert_eq!(table.rows[1], vec!["valA", "valB", "valC"]);
+}
+
+#[test]
+fn test_editor_save_auto_creates_directories_regression() {
+    use skat_os::editor::Editor;
+
+    let dir = tempfile::tempdir().unwrap();
+    let target_path = dir.path().join("deeply").join("nested").join("runbook.md");
+    assert!(!target_path.exists());
+
+    let buf = TextBuffer::from_str("# Deeply Nested Document\n");
+    let mut editor = Editor::new();
+    editor.buffer = buf;
+    editor.save_as(&target_path).expect("save_as should auto-create parent directories");
+
+    assert!(target_path.exists());
+    let saved_content = std::fs::read_to_string(&target_path).unwrap();
+    assert_eq!(saved_content, "# Deeply Nested Document\n");
+}
+
+
 
 

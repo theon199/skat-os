@@ -163,10 +163,10 @@ impl App {
         let mut editor = Editor::new();
 
         // Load first document if available (e.g. welcome.md)
-        if let Some(first_doc) = workspace.docs.first() {
-            if let Ok(ed) = Editor::from_file(&first_doc.path) {
-                editor = ed;
-            }
+        if let Some(first_doc) = workspace.docs.first()
+            && let Ok(ed) = Editor::from_file(&first_doc.path)
+        {
+            editor = ed;
         }
 
         let (event_tx, event_rx) = mpsc::unbounded_channel();
@@ -174,17 +174,17 @@ impl App {
         let table_states = crate::table::TableData::collect_tables(&editor.buffer);
         let mut fleet_states = HashMap::new();
         for b in crate::runner::Runner::all_code_blocks(&editor.buffer) {
-            if let Some(out) = &b.existing_output {
-                if let Some(fleet) = crate::mesh::FleetOutput::parse(&out.output_text) {
-                    fleet_states.insert(b.id.clone(), fleet.clone());
-                    if let Some(n) = &b.name {
-                        fleet_states.insert(n.clone(), fleet.clone());
-                    }
-                    if let Some(t) = &b.target {
-                        if let Some(g) = t.strip_prefix('@') {
-                            fleet_states.insert(g.to_string(), fleet);
-                        }
-                    }
+            if let Some(out) = &b.existing_output
+                && let Some(fleet) = crate::mesh::FleetOutput::parse(&out.output_text)
+            {
+                fleet_states.insert(b.id.clone(), fleet.clone());
+                if let Some(n) = &b.name {
+                    fleet_states.insert(n.clone(), fleet.clone());
+                }
+                if let Some(t) = &b.target
+                    && let Some(g) = t.strip_prefix('@')
+                {
+                    fleet_states.insert(g.to_string(), fleet);
                 }
             }
         }
@@ -226,17 +226,17 @@ impl App {
             self.table_states.entry(k).or_insert(v);
         }
         for b in crate::runner::Runner::all_code_blocks(&self.editor.buffer) {
-            if let Some(out) = &b.existing_output {
-                if let Some(fleet) = crate::mesh::FleetOutput::parse(&out.output_text) {
-                    self.fleet_states.entry(b.id.clone()).or_insert_with(|| fleet.clone());
-                    if let Some(n) = &b.name {
-                        self.fleet_states.entry(n.clone()).or_insert_with(|| fleet.clone());
-                    }
-                    if let Some(t) = &b.target {
-                        if let Some(g) = t.strip_prefix('@') {
-                            self.fleet_states.entry(g.to_string()).or_insert(fleet);
-                        }
-                    }
+            if let Some(out) = &b.existing_output
+                && let Some(fleet) = crate::mesh::FleetOutput::parse(&out.output_text)
+            {
+                self.fleet_states.entry(b.id.clone()).or_insert_with(|| fleet.clone());
+                if let Some(n) = &b.name {
+                    self.fleet_states.entry(n.clone()).or_insert_with(|| fleet.clone());
+                }
+                if let Some(t) = &b.target
+                    && let Some(g) = t.strip_prefix('@')
+                {
+                    self.fleet_states.entry(g.to_string()).or_insert(fleet);
                 }
             }
         }
@@ -388,10 +388,10 @@ impl App {
                         if let Some(name) = &block.name {
                             self.fleet_states.insert(name.clone(), fleet.clone());
                         }
-                        if let Some(target) = &block.target {
-                            if let Some(group) = target.strip_prefix('@') {
-                                self.fleet_states.insert(group.to_string(), fleet);
-                            }
+                        if let Some(target) = &block.target
+                            && let Some(group) = target.strip_prefix('@')
+                        {
+                            self.fleet_states.insert(group.to_string(), fleet);
                         }
                     }
 
@@ -420,10 +420,10 @@ impl App {
                         Runner::append_stream_chunk(&mut self.editor.buffer, &block_id, &chunk, &mut String::new());
                     }
 
-                    if let Some(b) = Runner::find_code_block_by_id(&self.editor.buffer, &block_id) {
-                        if let Some(out) = Runner::find_following_output_block(&self.editor.buffer, b.end_fence_line) {
-                            self.editor.buffer.cursor_line = out.end_line;
-                        }
+                    if let Some(b) = Runner::find_code_block_by_id(&self.editor.buffer, &block_id)
+                        && let Some(out) = Runner::find_following_output_block(&self.editor.buffer, b.end_fence_line)
+                    {
+                        self.editor.buffer.cursor_line = out.end_line;
                     }
 
                     if let Some(client) = &self.collab_client {
@@ -448,10 +448,10 @@ impl App {
                         if let Some(name) = &block.name {
                             self.fleet_states.insert(name.clone(), fleet.clone());
                         }
-                        if let Some(target) = &block.target {
-                            if let Some(group) = target.strip_prefix('@') {
-                                self.fleet_states.insert(group.to_string(), fleet);
-                            }
+                        if let Some(target) = &block.target
+                            && let Some(group) = target.strip_prefix('@')
+                        {
+                            self.fleet_states.insert(group.to_string(), fleet);
                         }
                     }
 
@@ -497,10 +497,10 @@ impl App {
                         Runner::append_stream_chunk(&mut self.editor.buffer, &block_id, &chunk, &mut String::new());
                     }
 
-                    if let Some(b) = Runner::find_code_block_by_id(&self.editor.buffer, &block_id) {
-                        if let Some(out) = Runner::find_following_output_block(&self.editor.buffer, b.end_fence_line) {
-                            self.editor.buffer.cursor_line = out.end_line;
-                        }
+                    if let Some(b) = Runner::find_code_block_by_id(&self.editor.buffer, &block_id)
+                        && let Some(out) = Runner::find_following_output_block(&self.editor.buffer, b.end_fence_line)
+                    {
+                        self.editor.buffer.cursor_line = out.end_line;
                     }
 
                     if let Some(client) = &self.collab_client {
@@ -541,10 +541,10 @@ impl App {
                         if let Some(name) = &block.name {
                             self.fleet_states.insert(name.clone(), fleet.clone());
                         }
-                        if let Some(target) = &block.target {
-                            if let Some(group) = target.strip_prefix('@') {
-                                self.fleet_states.insert(group.to_string(), fleet);
-                            }
+                        if let Some(target) = &block.target
+                            && let Some(group) = target.strip_prefix('@')
+                        {
+                            self.fleet_states.insert(group.to_string(), fleet);
                         }
                     }
 
@@ -581,9 +581,22 @@ impl App {
 
         // 2. Incoming multiplayer network messages
         let mut incoming_messages = Vec::new();
+        let mut disconnected = false;
         if let Some(client) = &mut self.collab_client {
             while let Some(msg) = client.try_recv() {
                 incoming_messages.push(msg);
+            }
+            if !client.is_connected() && incoming_messages.is_empty() {
+                disconnected = true;
+            }
+        }
+        if disconnected {
+            if matches!(self.collab_mode, CollabMode::Client { .. }) {
+                self.status_message = "Disconnected from host: connection closed".to_string();
+                self.collab_mode = CollabMode::Offline;
+                self.collab_client = None;
+            } else if matches!(self.collab_mode, CollabMode::Host { .. }) {
+                self.collab_client = None;
             }
         }
 
@@ -708,10 +721,10 @@ impl App {
                         Runner::append_stream_chunk(&mut self.editor.buffer, &block_id, &chunk, &mut acc);
                         self.remote_streams.insert(block_id.clone(), acc);
 
-                        if let Some(b) = Runner::find_code_block_by_id(&self.editor.buffer, &block_id) {
-                            if let Some(out) = Runner::find_following_output_block(&self.editor.buffer, b.end_fence_line) {
-                                self.editor.buffer.cursor_line = out.end_line;
-                            }
+                        if let Some(b) = Runner::find_code_block_by_id(&self.editor.buffer, &block_id)
+                            && let Some(out) = Runner::find_following_output_block(&self.editor.buffer, b.end_fence_line)
+                        {
+                            self.editor.buffer.cursor_line = out.end_line;
                         }
 
                         self.status_message = format!("{} is streaming block {}...", peer_name, block_id);
@@ -899,11 +912,11 @@ impl App {
                     self.status_message = "Execution cancelled".to_string();
                 }
                 KeyCode::Enter => {
-                    if let Some(ref kw) = keyword_required {
-                        if !keyword_input.trim().eq_ignore_ascii_case(kw.trim()) {
-                            self.status_message = format!("Confirmation keyword mismatch! Please type '{}' to confirm.", kw);
-                            return;
-                        }
+                    if let Some(ref kw) = keyword_required
+                        && !keyword_input.trim().eq_ignore_ascii_case(kw.trim())
+                    {
+                        self.status_message = format!("Confirmation keyword mismatch! Please type '{}' to confirm.", kw);
+                        return;
                     }
                     self.mode = AppMode::Normal;
                     self.execute_block_by_id(&block_id);
@@ -1002,23 +1015,19 @@ impl App {
                 KeyCode::Esc | KeyCode::Enter | KeyCode::Char('q') => {
                     self.mode = AppMode::Normal;
                 }
-                KeyCode::Down | KeyCode::Char('j') => {
-                    if total_rows > 0 && row_index + 1 < total_rows {
-                        row_index += 1;
-                        if let Some(tbl) = self.table_states.get_mut(&block_id) {
-                            tbl.selected_row = row_index;
-                        }
-                        self.mode = AppMode::TableInspectModal { block_id, row_index };
+                KeyCode::Down | KeyCode::Char('j') if total_rows > 0 && row_index + 1 < total_rows => {
+                    row_index += 1;
+                    if let Some(tbl) = self.table_states.get_mut(&block_id) {
+                        tbl.selected_row = row_index;
                     }
+                    self.mode = AppMode::TableInspectModal { block_id, row_index };
                 }
-                KeyCode::Up | KeyCode::Char('k') => {
-                    if row_index > 0 {
-                        row_index -= 1;
-                        if let Some(tbl) = self.table_states.get_mut(&block_id) {
-                            tbl.selected_row = row_index;
-                        }
-                        self.mode = AppMode::TableInspectModal { block_id, row_index };
+                KeyCode::Up | KeyCode::Char('k') if row_index > 0 => {
+                    row_index -= 1;
+                    if let Some(tbl) = self.table_states.get_mut(&block_id) {
+                        tbl.selected_row = row_index;
                     }
+                    self.mode = AppMode::TableInspectModal { block_id, row_index };
                 }
                 _ => {}
             }
@@ -1027,9 +1036,11 @@ impl App {
 
     fn handle_normal_key(&mut self, key: KeyEvent) {
         // Playbook execution shortcut: Ctrl+Shift+R or F5 triggers "Run All Blocks"
-        if (key.modifiers.contains(KeyModifiers::CONTROL)
-            && (key.modifiers.contains(KeyModifiers::SHIFT) || key.code == KeyCode::Char('R')))
-            || key.code == KeyCode::F(5)
+        let is_ctrl_shift_r = key.modifiers.contains(KeyModifiers::CONTROL)
+            && ((key.modifiers.contains(KeyModifiers::SHIFT)
+                && (key.code == KeyCode::Char('r') || key.code == KeyCode::Char('R')))
+                || key.code == KeyCode::Char('R'));
+        if is_ctrl_shift_r || key.code == KeyCode::F(5)
         {
             self.trigger_run_all_blocks();
             return;
@@ -1137,27 +1148,27 @@ impl App {
         }
 
         // If a command is actively running, forward interactive keystrokes to stdin
-        if self.is_running_block {
-            if let Some(ref cmd) = self.running_command {
-                match key.code {
-                    KeyCode::Enter => {
-                        let _ = cmd.stdin_tx.send(b"\n".to_vec());
-                        return;
-                    }
-                    KeyCode::Backspace => {
-                        let _ = cmd.stdin_tx.send(b"\x7f".to_vec());
-                        return;
-                    }
-                    KeyCode::Char(c) => {
-                        let _ = cmd.stdin_tx.send(c.to_string().into_bytes());
-                        return;
-                    }
-                    KeyCode::Tab => {
-                        let _ = cmd.stdin_tx.send(b"\t".to_vec());
-                        return;
-                    }
-                    _ => {}
+        if self.is_running_block
+            && let Some(ref cmd) = self.running_command
+        {
+            match key.code {
+                KeyCode::Enter => {
+                    let _ = cmd.stdin_tx.send(b"\n".to_vec());
+                    return;
                 }
+                KeyCode::Backspace => {
+                    let _ = cmd.stdin_tx.send(b"\x7f".to_vec());
+                    return;
+                }
+                KeyCode::Char(c) => {
+                    let _ = cmd.stdin_tx.send(c.to_string().into_bytes());
+                    return;
+                }
+                KeyCode::Tab => {
+                    let _ = cmd.stdin_tx.send(b"\t".to_vec());
+                    return;
+                }
+                _ => {}
             }
         }
 
@@ -1248,26 +1259,26 @@ impl App {
                     if let Some(block) = blocks.iter().find(|b| {
                         b.end_fence_line + 1 == out_span.start_line
                             || b.end_fence_line + 2 == out_span.start_line
-                    }) {
-                        if let Some(fleet) = self.fleet_states.get_mut(&block.id) {
-                            if fleet.selected_tab > 0 {
-                                fleet.selected_tab -= 1;
-                            } else if !fleet.hosts.is_empty() {
-                                fleet.selected_tab = fleet.hosts.len() - 1;
-                            }
-                            self.status_message = format!(
-                                "Fleet '{}': Host {}/{} ({})",
-                                block.name.as_deref().unwrap_or(&block.id),
-                                fleet.selected_tab + 1,
-                                fleet.hosts.len(),
-                                fleet.hosts.get(fleet.selected_tab).map(|h| h.host.as_str()).unwrap_or("")
-                            );
-                            if let Some(name) = &block.name {
-                                let cloned = fleet.clone();
-                                self.fleet_states.insert(name.clone(), cloned);
-                            }
-                            return;
+                    })
+                        && let Some(fleet) = self.fleet_states.get_mut(&block.id)
+                    {
+                        if fleet.selected_tab > 0 {
+                            fleet.selected_tab -= 1;
+                        } else if !fleet.hosts.is_empty() {
+                            fleet.selected_tab = fleet.hosts.len() - 1;
                         }
+                        self.status_message = format!(
+                            "Fleet '{}': Host {}/{} ({})",
+                            block.name.as_deref().unwrap_or(&block.id),
+                            fleet.selected_tab + 1,
+                            fleet.hosts.len(),
+                            fleet.hosts.get(fleet.selected_tab).map(|h| h.host.as_str()).unwrap_or("")
+                        );
+                        if let Some(name) = &block.name {
+                            let cloned = fleet.clone();
+                            self.fleet_states.insert(name.clone(), cloned);
+                        }
+                        return;
                     }
                 }
                 if key.code == KeyCode::Left {
@@ -1292,24 +1303,24 @@ impl App {
                     if let Some(block) = blocks.iter().find(|b| {
                         b.end_fence_line + 1 == out_span.start_line
                             || b.end_fence_line + 2 == out_span.start_line
-                    }) {
-                        if let Some(fleet) = self.fleet_states.get_mut(&block.id) {
-                            if !fleet.hosts.is_empty() {
-                                fleet.selected_tab = (fleet.selected_tab + 1) % fleet.hosts.len();
-                            }
-                            self.status_message = format!(
-                                "Fleet '{}': Host {}/{} ({})",
-                                block.name.as_deref().unwrap_or(&block.id),
-                                fleet.selected_tab + 1,
-                                fleet.hosts.len(),
-                                fleet.hosts.get(fleet.selected_tab).map(|h| h.host.as_str()).unwrap_or("")
-                            );
-                            if let Some(name) = &block.name {
-                                let cloned = fleet.clone();
-                                self.fleet_states.insert(name.clone(), cloned);
-                            }
-                            return;
+                    })
+                        && let Some(fleet) = self.fleet_states.get_mut(&block.id)
+                    {
+                        if !fleet.hosts.is_empty() {
+                            fleet.selected_tab = (fleet.selected_tab + 1) % fleet.hosts.len();
                         }
+                        self.status_message = format!(
+                            "Fleet '{}': Host {}/{} ({})",
+                            block.name.as_deref().unwrap_or(&block.id),
+                            fleet.selected_tab + 1,
+                            fleet.hosts.len(),
+                            fleet.hosts.get(fleet.selected_tab).map(|h| h.host.as_str()).unwrap_or("")
+                        );
+                        if let Some(name) = &block.name {
+                            let cloned = fleet.clone();
+                            self.fleet_states.insert(name.clone(), cloned);
+                        }
+                        return;
                     }
                 }
                 if key.code == KeyCode::Right {
@@ -1334,23 +1345,23 @@ impl App {
                     if let Some(block) = blocks.iter().find(|b| {
                         b.end_fence_line + 1 == out_span.start_line
                             || b.end_fence_line + 2 == out_span.start_line
-                    }) {
-                        if let Some(tbl) = self.table_states.get_mut(&block.id) {
-                            tbl.select_prev_row();
-                            let r_idx = tbl.selected_row;
-                            let total = tbl.rows.len();
-                            self.status_message = format!(
-                                "Table '{}': Row {}/{} selected",
-                                block.name.as_deref().unwrap_or(&block.id),
-                                r_idx + 1,
-                                total
-                            );
-                            if let Some(name) = &block.name {
-                                let cloned = tbl.clone();
-                                self.table_states.insert(name.clone(), cloned);
-                            }
-                            return;
+                    })
+                        && let Some(tbl) = self.table_states.get_mut(&block.id)
+                    {
+                        tbl.select_prev_row();
+                        let r_idx = tbl.selected_row;
+                        let total = tbl.rows.len();
+                        self.status_message = format!(
+                            "Table '{}': Row {}/{} selected",
+                            block.name.as_deref().unwrap_or(&block.id),
+                            r_idx + 1,
+                            total
+                        );
+                        if let Some(name) = &block.name {
+                            let cloned = tbl.clone();
+                            self.table_states.insert(name.clone(), cloned);
                         }
+                        return;
                     }
                 }
                 self.editor.buffer.move_up();
@@ -1362,23 +1373,23 @@ impl App {
                     if let Some(block) = blocks.iter().find(|b| {
                         b.end_fence_line + 1 == out_span.start_line
                             || b.end_fence_line + 2 == out_span.start_line
-                    }) {
-                        if let Some(tbl) = self.table_states.get_mut(&block.id) {
-                            tbl.select_next_row();
-                            let r_idx = tbl.selected_row;
-                            let total = tbl.rows.len();
-                            self.status_message = format!(
-                                "Table '{}': Row {}/{} selected",
-                                block.name.as_deref().unwrap_or(&block.id),
-                                r_idx + 1,
-                                total
-                            );
-                            if let Some(name) = &block.name {
-                                let cloned = tbl.clone();
-                                self.table_states.insert(name.clone(), cloned);
-                            }
-                            return;
+                    })
+                        && let Some(tbl) = self.table_states.get_mut(&block.id)
+                    {
+                        tbl.select_next_row();
+                        let r_idx = tbl.selected_row;
+                        let total = tbl.rows.len();
+                        self.status_message = format!(
+                            "Table '{}': Row {}/{} selected",
+                            block.name.as_deref().unwrap_or(&block.id),
+                            r_idx + 1,
+                            total
+                        );
+                        if let Some(name) = &block.name {
+                            let cloned = tbl.clone();
+                            self.table_states.insert(name.clone(), cloned);
                         }
+                        return;
                     }
                 }
                 self.editor.buffer.move_down();
@@ -1394,7 +1405,7 @@ impl App {
                     self.editor.buffer.delete_word();
                     let deleted = col_before.saturating_sub(self.editor.buffer.cursor_col);
                     if let Some(client) = &self.collab_client {
-                        for i in (0..deleted).rev() {
+                        for i in 0..deleted {
                             client.send_delete_char(pos.saturating_sub(1 + i));
                         }
                     }
@@ -1462,14 +1473,14 @@ impl App {
                     if let Some(block) = blocks.iter().find(|b| {
                         b.end_fence_line + 1 == out_span.start_line
                             || b.end_fence_line + 2 == out_span.start_line
-                    }) {
-                        if let Some(tbl) = self.table_states.get(&block.id) {
-                            self.mode = AppMode::TableInspectModal {
-                                block_id: block.id.clone(),
-                                row_index: tbl.selected_row,
-                            };
-                            return;
-                        }
+                    })
+                        && let Some(tbl) = self.table_states.get(&block.id)
+                    {
+                        self.mode = AppMode::TableInspectModal {
+                            block_id: block.id.clone(),
+                            row_index: tbl.selected_row,
+                        };
+                        return;
                     }
                 }
 
@@ -1553,10 +1564,10 @@ impl App {
         }
 
         // Broadcast cursor movement if changed
-        if (self.editor.buffer.cursor_line, self.editor.buffer.cursor_col) != (old_line, old_col) {
-            if let Some(client) = &self.collab_client {
-                client.send_cursor_move(self.editor.buffer.cursor_line, self.editor.buffer.cursor_col);
-            }
+        if (self.editor.buffer.cursor_line, self.editor.buffer.cursor_col) != (old_line, old_col)
+            && let Some(client) = &self.collab_client
+        {
+            client.send_cursor_move(self.editor.buffer.cursor_line, self.editor.buffer.cursor_col);
         }
     }
 
@@ -1763,15 +1774,15 @@ impl App {
         let cursor_line = self.editor.buffer.cursor_line;
         if let Some(block) = Runner::find_code_block(&self.editor.buffer, cursor_line) {
             // 1. Multiplayer consensus approval gate
-            if block.approvals > 1 && self.collab_client.is_some() {
-                if let Some(client) = &self.collab_client {
-                    client.send_approval_request(block.id.clone(), block.code.clone(), block.approvals);
-                    self.status_message = format!(
-                        "Multiplayer approval consensus requested for block '{}' (requires {} approvals)",
-                        block.id, block.approvals
-                    );
-                    return;
-                }
+            if block.approvals > 1
+                && let Some(client) = &self.collab_client
+            {
+                client.send_approval_request(block.id.clone(), block.code.clone(), block.approvals);
+                self.status_message = format!(
+                    "Multiplayer approval consensus requested for block '{}' (requires {} approvals)",
+                    block.id, block.approvals
+                );
+                return;
             }
 
             // 2. Interactive safety confirmation gate
@@ -2026,10 +2037,10 @@ impl App {
                                 if let Some(name) = &block.name {
                                     outputs.insert(name.clone(), result.clone());
                                 }
-                                if let Some(target) = &block_to_run.target {
-                                    if let Some(group) = target.strip_prefix('@') {
-                                        outputs.insert(group.to_string(), result.clone());
-                                    }
+                                if let Some(target) = &block_to_run.target
+                                    && let Some(group) = target.strip_prefix('@')
+                                {
+                                    outputs.insert(group.to_string(), result.clone());
                                 }
 
                                 if let Some(tbl) = crate::table::TableData::parse(&result.stdout) {

@@ -4,9 +4,26 @@ use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::path::Path;
 use std::process::Stdio;
+use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
+
+static SEC_INTERPOLATE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\{\{\s*secrets?[:.]([a-zA-Z0-9_./:#=-]+)\s*\}\}").unwrap()
+});
+
+static VAR_INTERPOLATE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\{\{\s*([a-zA-Z0-9_-]+)(?:\[(\d+)\])?(?:[.:]([a-zA-Z0-9_./:#=-]+))?\s*\}\}").unwrap()
+});
+
+static DEP_TEMPLATE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\{\{\s*([a-zA-Z0-9_-]+)(?:\[\d+\])?(?:[.:][a-zA-Z0-9_.-]+)?\s*\}\}").unwrap()
+});
+
+static DEP_ENV_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\$\{?SKAT_([a-zA-Z0-9_]+?)(?:_STDOUT|_STDERR|_EXIT_CODE)?\}?\b").unwrap()
+});
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputStatus {
@@ -456,12 +473,11 @@ impl Runner {
                 return Some(b.clone());
             }
         }
-        if let Some(num_str) = target_id.strip_prefix("block_") {
-            if let Ok(num) = num_str.parse::<usize>() {
-                if let Some(b) = blocks.get(num) {
-                    return Some(b.clone());
-                }
-            }
+        if let Some(num_str) = target_id.strip_prefix("block_")
+            && let Ok(num) = num_str.parse::<usize>()
+            && let Some(b) = blocks.get(num)
+        {
+            return Some(b.clone());
         }
         None
     }
@@ -475,8 +491,7 @@ impl Runner {
         tables: &HashMap<String, crate::table::TableData>,
     ) -> String {
         // 0. Secret interpolation: {{secret.KEY}}, {{secrets.KEY}}, {{secret:KEY}}
-        let sec_re = Regex::new(r"\{\{\s*secrets?[:.]([a-zA-Z0-9_./:#=-]+)\s*\}\}").unwrap();
-        let code_after_sec = sec_re.replace_all(code, |caps: &regex::Captures| {
+        let code_after_sec = SEC_INTERPOLATE_RE.replace_all(code, |caps: &regex::Captures| {
             let key = &caps[1];
             let mut vault = crate::vault::SecretVault::new();
             if let Some(val) = vault.resolve(key) {
@@ -486,8 +501,7 @@ impl Runner {
             }
         });
 
-        let re = Regex::new(r"\{\{\s*([a-zA-Z0-9_-]+)(?:\[(\d+)\])?(?:\.([a-zA-Z0-9_./:#=-]+))?\s*\}\}").unwrap();
-        re.replace_all(&code_after_sec, |caps: &regex::Captures| {
+        VAR_INTERPOLATE_RE.replace_all(&code_after_sec, |caps: &regex::Captures| {
             let key = &caps[1];
             let index_opt: Option<usize> = caps.get(2).and_then(|m| m.as_str().parse().ok());
             let field = caps.get(3).map(|m| m.as_str()).unwrap_or("");
@@ -508,62 +522,63 @@ impl Runner {
                     .map(|(_, v)| v)
             });
 
-            if let Some(res) = result {
-                if let Some(fleet) = crate::mesh::FleetOutput::parse(&res.stdout) {
-                    if let Some(idx) = index_opt {
-                        if let Some(host_out) = fleet.hosts.get(idx) {
-                            let out_field = if field.is_empty() { "stdout" } else { field };
-                            return match out_field.to_lowercase().as_str() {
-                                "stdout" => crate::ansi::strip_ansi_codes(&host_out.stdout)
-                                    .trim_end_matches(&['\r', '\n'][..])
-                                    .to_string(),
-                                "stderr" => crate::ansi::strip_ansi_codes(&host_out.stderr)
-                                    .trim_end_matches(&['\r', '\n'][..])
-                                    .to_string(),
-                                "exit_code" | "code" => host_out.exit_code.to_string(),
-                                "host" => host_out.host.clone(),
-                                _ => crate::ansi::strip_ansi_codes(&host_out.stdout)
-                                    .trim_end_matches(&['\r', '\n'][..])
-                                    .to_string(),
-                            };
+            if let Some(res) = result
+                && let Some(fleet) = crate::mesh::FleetOutput::parse(&res.stdout)
+            {
+                if let Some(idx) = index_opt {
+                    if let Some(host_out) = fleet.hosts.get(idx) {
+                        let out_field = if field.is_empty() { "stdout" } else { field };
+                        return match out_field.to_lowercase().as_str() {
+                            "stdout" => crate::ansi::strip_ansi_codes(&host_out.stdout)
+                                .trim_end_matches(&['\r', '\n'][..])
+                                .to_string(),
+                            "stderr" => crate::ansi::strip_ansi_codes(&host_out.stderr)
+                                .trim_end_matches(&['\r', '\n'][..])
+                                .to_string(),
+                            "exit_code" | "code" => host_out.exit_code.to_string(),
+                            "host" => host_out.host.clone(),
+                            _ => crate::ansi::strip_ansi_codes(&host_out.stdout)
+                                .trim_end_matches(&['\r', '\n'][..])
+                                .to_string(),
+                        };
+                    }
+                } else {
+                    match field.to_lowercase().as_str() {
+                        "failed" => return fleet.failed_hosts().join(", "),
+                        "success" => return fleet.is_success().to_string(),
+                        "count" | "total" => return fleet.hosts.len().to_string(),
+                        "hosts" => {
+                            let all_h: Vec<String> = fleet.hosts.iter().map(|h| h.host.clone()).collect();
+                            return all_h.join(", ");
                         }
-                    } else {
-                        match field.to_lowercase().as_str() {
-                            "failed" => return fleet.failed_hosts().join(", "),
-                            "success" => return fleet.is_success().to_string(),
-                            "count" | "total" => return fleet.hosts.len().to_string(),
-                            "hosts" => {
-                                let all_h: Vec<String> = fleet.hosts.iter().map(|h| h.host.clone()).collect();
-                                return all_h.join(", ");
-                            }
-                            _ => {}
-                        }
+                        _ => {}
                     }
                 }
             }
 
             // 2. Parameter interpolation: {{params.CLUSTER}}, {{param.CLUSTER}}, {{param:CLUSTER}}
-            if key.eq_ignore_ascii_case("params") || key.eq_ignore_ascii_case("param") {
-                if let Some(val) = params.get(field).or_else(|| {
+            if (key.eq_ignore_ascii_case("params") || key.eq_ignore_ascii_case("param"))
+                && let Some(val) = params.get(field).or_else(|| {
                     params
                         .iter()
                         .find(|(k, _)| k.eq_ignore_ascii_case(field))
                         .map(|(_, v)| v)
-                }) {
-                    return val.clone();
-                }
+                })
+            {
+                return val.clone();
             }
 
             // Also check direct param match if {{CLUSTER}} without dot
-            if field.is_empty() && index_opt.is_none() {
-                if let Some(val) = params.get(key).or_else(|| {
+            if field.is_empty()
+                && index_opt.is_none()
+                && let Some(val) = params.get(key).or_else(|| {
                     params
                         .iter()
                         .find(|(k, _)| k.eq_ignore_ascii_case(key))
                         .map(|(_, v)| v)
-                }) {
-                    return val.clone();
-                }
+                })
+            {
+                return val.clone();
             }
 
             // 3. Table selection interpolation: {{table_name.selected.id}}, {{table_name.selected}}
@@ -745,8 +760,7 @@ impl Runner {
     /// Extracts referenced block names/IDs from template {{name.field}}, {{name[0].field}}, and $SKAT_NAME_STDOUT
     pub fn extract_dependencies(code: &str) -> Vec<String> {
         let mut deps: Vec<String> = Vec::new();
-        let template_re = Regex::new(r"\{\{\s*([a-zA-Z0-9_-]+)(?:\[\d+\])?(?:\.[a-zA-Z0-9_.-]+)?\s*\}\}").unwrap();
-        for cap in template_re.captures_iter(code) {
+        for cap in DEP_TEMPLATE_RE.captures_iter(code) {
             let name = cap[1].to_string();
             if name.eq_ignore_ascii_case("params") || name.eq_ignore_ascii_case("param") {
                 continue;
@@ -756,8 +770,7 @@ impl Runner {
             }
         }
 
-        let env_re = Regex::new(r"\$\{?SKAT_([a-zA-Z0-9_]+?)(?:_STDOUT|_STDERR|_EXIT_CODE)?\}?\b").unwrap();
-        for cap in env_re.captures_iter(code) {
+        for cap in DEP_ENV_RE.captures_iter(code) {
             let name = cap[1].to_lowercase();
             if name.starts_with("param_") || name == "param" {
                 continue;
@@ -818,8 +831,8 @@ impl Runner {
         }
 
         let mut queue = VecDeque::new();
-        for i in 0..blocks.len() {
-            if in_degree[i] == 0 {
+        for (i, &deg) in in_degree.iter().enumerate() {
+            if deg == 0 {
                 queue.push_back(i);
             }
         }
@@ -1029,9 +1042,9 @@ impl Runner {
                 let (chunk_tx, mut chunk_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
                 let (done_tx, mut done_rx) = tokio::sync::oneshot::channel::<()>();
 
-                // Spawn reader thread
+                // Spawn reader thread with 8KB buffer for streaming throughput
                 std::thread::spawn(move || {
-                    let mut buf = [0u8; 4096];
+                    let mut buf = [0u8; 8192];
                     loop {
                         match reader.read(&mut buf) {
                             Ok(0) => break,
@@ -1060,6 +1073,7 @@ impl Runner {
                     let mut full_output = Vec::new();
                     let mut interrupted = false;
                     let mut timed_out = false;
+                    let mut utf8_carry = Vec::new();
                     let start_time = tokio::time::Instant::now();
                     let timeout_duration = Duration::from_secs(60);
 
@@ -1072,8 +1086,21 @@ impl Runner {
                             }
                             Some(bytes) = chunk_rx.recv() => {
                                 full_output.extend_from_slice(&bytes);
-                                let text = String::from_utf8_lossy(&bytes).to_string();
-                                masked_on_chunk(text);
+                                let mut to_decode = std::mem::take(&mut utf8_carry);
+                                to_decode.extend_from_slice(&bytes);
+                                match std::str::from_utf8(&to_decode) {
+                                    Ok(valid_str) => {
+                                        masked_on_chunk(valid_str.to_string());
+                                    }
+                                    Err(e) => {
+                                        let valid_idx = e.valid_up_to();
+                                        let valid_text = String::from_utf8_lossy(&to_decode[..valid_idx]).to_string();
+                                        utf8_carry.extend_from_slice(&to_decode[valid_idx..]);
+                                        if !valid_text.is_empty() {
+                                            masked_on_chunk(valid_text);
+                                        }
+                                    }
+                                }
                             }
                             _ = &mut done_rx => {
                                 break;
@@ -1088,11 +1115,31 @@ impl Runner {
 
                     while let Ok(bytes) = chunk_rx.try_recv() {
                         full_output.extend_from_slice(&bytes);
-                        let text = String::from_utf8_lossy(&bytes).to_string();
+                        let mut to_decode = std::mem::take(&mut utf8_carry);
+                        to_decode.extend_from_slice(&bytes);
+                        match std::str::from_utf8(&to_decode) {
+                            Ok(valid_str) => {
+                                masked_on_chunk(valid_str.to_string());
+                            }
+                            Err(e) => {
+                                let valid_idx = e.valid_up_to();
+                                let valid_text = String::from_utf8_lossy(&to_decode[..valid_idx]).to_string();
+                                utf8_carry.extend_from_slice(&to_decode[valid_idx..]);
+                                if !valid_text.is_empty() {
+                                    masked_on_chunk(valid_text);
+                                }
+                            }
+                        }
+                    }
+
+                    if !utf8_carry.is_empty() {
+                        let text = String::from_utf8_lossy(&utf8_carry).to_string();
                         masked_on_chunk(text);
                     }
 
-                    let status = child.wait();
+                    let status = tokio::task::spawn_blocking(move || child.wait())
+                        .await
+                        .unwrap_or_else(|_| Err(std::io::Error::other("wait error")));
                     let exit_code = if interrupted {
                         130
                     } else if timed_out {
@@ -1202,8 +1249,10 @@ impl Runner {
             let mut interrupted = false;
             let mut timed_out = false;
 
-            let mut stdout_buf = [0u8; 4096];
-            let mut stderr_buf = [0u8; 4096];
+            let mut stdout_buf = [0u8; 8192];
+            let mut stderr_buf = [0u8; 8192];
+            let mut stdout_carry = Vec::new();
+            let mut stderr_carry = Vec::new();
             let mut stdout_closed = stdout.is_none();
             let mut stderr_closed = stderr.is_none();
 
@@ -1232,8 +1281,21 @@ impl Runner {
                             Ok(0) | Err(_) => stdout_closed = true,
                             Ok(n) => {
                                 full_stdout.extend_from_slice(&stdout_buf[..n]);
-                                let text = String::from_utf8_lossy(&stdout_buf[..n]).to_string();
-                                on_chunk(text);
+                                let mut to_decode = std::mem::take(&mut stdout_carry);
+                                to_decode.extend_from_slice(&stdout_buf[..n]);
+                                match std::str::from_utf8(&to_decode) {
+                                    Ok(valid_str) => {
+                                        on_chunk(valid_str.to_string());
+                                    }
+                                    Err(e) => {
+                                        let valid_idx = e.valid_up_to();
+                                        let valid_text = String::from_utf8_lossy(&to_decode[..valid_idx]).to_string();
+                                        stdout_carry.extend_from_slice(&to_decode[valid_idx..]);
+                                        if !valid_text.is_empty() {
+                                            on_chunk(valid_text);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1248,8 +1310,21 @@ impl Runner {
                             Ok(0) | Err(_) => stderr_closed = true,
                             Ok(n) => {
                                 full_stderr.extend_from_slice(&stderr_buf[..n]);
-                                let text = String::from_utf8_lossy(&stderr_buf[..n]).to_string();
-                                on_chunk(text);
+                                let mut to_decode = std::mem::take(&mut stderr_carry);
+                                to_decode.extend_from_slice(&stderr_buf[..n]);
+                                match std::str::from_utf8(&to_decode) {
+                                    Ok(valid_str) => {
+                                        on_chunk(valid_str.to_string());
+                                    }
+                                    Err(e) => {
+                                        let valid_idx = e.valid_up_to();
+                                        let valid_text = String::from_utf8_lossy(&to_decode[..valid_idx]).to_string();
+                                        stderr_carry.extend_from_slice(&to_decode[valid_idx..]);
+                                        if !valid_text.is_empty() {
+                                            on_chunk(valid_text);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1259,6 +1334,15 @@ impl Runner {
                         break;
                     }
                 }
+            }
+
+            if !stdout_carry.is_empty() {
+                let text = String::from_utf8_lossy(&stdout_carry).to_string();
+                on_chunk(text);
+            }
+            if !stderr_carry.is_empty() {
+                let text = String::from_utf8_lossy(&stderr_carry).to_string();
+                on_chunk(text);
             }
 
             let status = child.wait().await;
@@ -1348,17 +1432,34 @@ impl Runner {
 
             on_step_start(i, &block_to_run);
 
-            let result = Self::execute_with_env(&block_to_run, working_dir, &env_vars).await?;
+            let result = match Self::execute_with_env(&block_to_run, working_dir, &env_vars).await {
+                Ok(res) => res,
+                Err(err) => {
+                    return Ok(PlaybookReport {
+                        total_steps: blocks.len(),
+                        executed_steps: i + 1,
+                        failed_step: Some(i),
+                        failed_block_id: Some(block.id.clone()),
+                        success: false,
+                        error_message: Some(format!(
+                            "Step {} ({}) failed with error: {}",
+                            i + 1,
+                            block.name.as_deref().unwrap_or(&block.id),
+                            err
+                        )),
+                    });
+                }
+            };
 
             outputs.insert(format!("block_{}", i), result.clone());
             outputs.insert(block.id.clone(), result.clone());
             if let Some(name) = &block.name {
                 outputs.insert(name.clone(), result.clone());
             }
-            if let Some(target) = &block_to_run.target {
-                if let Some(group) = target.strip_prefix('@') {
-                    outputs.insert(group.to_string(), result.clone());
-                }
+            if let Some(target) = &block_to_run.target
+                && let Some(group) = target.strip_prefix('@')
+            {
+                outputs.insert(group.to_string(), result.clone());
             }
 
             // If output parses into a table, update tables map
@@ -1672,10 +1773,10 @@ impl Runner {
                 exit_code = 130;
             } else if let Some(idx) = trimmed.find("[exit: ") {
                 let rest = &trimmed[idx + 7..];
-                if let Some(end_idx) = rest.find(']') {
-                    if let Ok(c) = rest[..end_idx].trim().parse::<i32>() {
-                        exit_code = c;
-                    }
+                if let Some(end_idx) = rest.find(']')
+                    && let Ok(c) = rest[..end_idx].trim().parse::<i32>()
+                {
+                    exit_code = c;
                 }
             }
 

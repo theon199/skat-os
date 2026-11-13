@@ -47,6 +47,10 @@ impl Editor {
 
     pub fn save(&mut self) -> Result<()> {
         if let Some(path) = &self.file_path {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("Failed to create parent directory for {:?}", path))?;
+            }
             let text = self.buffer.get_text();
             fs::write(path, text)
                 .with_context(|| format!("Failed to save file to {:?}", path))?;
@@ -57,6 +61,10 @@ impl Editor {
 
     #[allow(dead_code)]
     pub fn save_as(&mut self, path: &Path) -> Result<()> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create parent directory for {:?}", path))?;
+        }
         let text = self.buffer.get_text();
         fs::write(path, text)
             .with_context(|| format!("Failed to save file to {:?}", path))?;

@@ -3,8 +3,13 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use std::time::SystemTime;
 use walkdir::WalkDir;
+
+static LINK_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\[\[([^\]]+)\]\]").unwrap()
+});
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -27,7 +32,6 @@ pub struct Workspace {
     pub root_dir: PathBuf,
     pub docs: Vec<DocumentMeta>,
     pub backlinks: HashMap<String, Vec<String>>,
-    link_regex: Regex,
 }
 
 impl Workspace {
@@ -35,13 +39,10 @@ impl Workspace {
         fs::create_dir_all(&root_dir)
             .with_context(|| format!("Failed to create workspace directory at {:?}", root_dir))?;
 
-        let link_regex = Regex::new(r"\[\[([^\]]+)\]\]")?;
-
         let mut ws = Self {
             root_dir,
             docs: Vec::new(),
             backlinks: HashMap::new(),
-            link_regex,
         };
 
         ws.ensure_seed_documents()?;
@@ -53,39 +54,37 @@ impl Workspace {
         let mut new_docs = Vec::new();
 
         for entry in WalkDir::new(&self.root_dir).into_iter().filter_map(|e| e.ok()) {
-            if entry.file_type().is_file() {
-                if let Some(ext) = entry.path().extension() {
-                    if ext == "md" {
-                        let path = entry.path().to_path_buf();
-                        let rel = path
-                            .strip_prefix(&self.root_dir)
-                            .unwrap_or(&path)
-                            .to_string_lossy()
-                            .to_string();
+            if entry.file_type().is_file()
+                && entry.path().extension().is_some_and(|ext| ext == "md")
+            {
+                let path = entry.path().to_path_buf();
+                let rel = path
+                    .strip_prefix(&self.root_dir)
+                    .unwrap_or(&path)
+                    .to_string_lossy()
+                    .to_string();
 
-                        let metadata = fs::metadata(&path).ok();
-                        let last_mod = metadata
-                            .and_then(|m| m.modified().ok())
-                            .unwrap_or(SystemTime::UNIX_EPOCH);
+                let metadata = fs::metadata(&path).ok();
+                let last_mod = metadata
+                    .and_then(|m| m.modified().ok())
+                    .unwrap_or(SystemTime::UNIX_EPOCH);
 
-                        let file_stem = path
-                            .file_stem()
-                            .map(|s| s.to_string_lossy().to_string())
-                            .unwrap_or_else(|| "Untitled".to_string());
+                let file_stem = path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "Untitled".to_string());
 
-                        let title = match fs::read_to_string(&path) {
-                            Ok(content) => Self::extract_title(&content, &file_stem),
-                            Err(_) => file_stem,
-                        };
+                let title = match fs::read_to_string(&path) {
+                    Ok(content) => Self::extract_title(&content, &file_stem),
+                    Err(_) => file_stem,
+                };
 
-                        new_docs.push(DocumentMeta {
-                            path,
-                            relative_path: rel,
-                            title,
-                            last_modified: last_mod,
-                        });
-                    }
-                }
+                new_docs.push(DocumentMeta {
+                    path,
+                    relative_path: rel,
+                    title,
+                    last_modified: last_mod,
+                });
             }
         }
 
@@ -115,10 +114,14 @@ impl Workspace {
 
         for doc in &self.docs {
             if let Ok(content) = fs::read_to_string(&doc.path) {
-                for cap in self.link_regex.captures_iter(&content) {
+                for cap in LINK_REGEX.captures_iter(&content) {
                     if let Some(m) = cap.get(1) {
-                        let target = m.as_str().trim().to_lowercase();
-                        map.entry(target).or_default().push(doc.relative_path.clone());
+                        let raw_target = m.as_str().trim().to_lowercase();
+                        let clean_target = raw_target
+                            .strip_suffix(".md")
+                            .unwrap_or(&raw_target)
+                            .to_string();
+                        map.entry(clean_target).or_default().push(doc.relative_path.clone());
                     }
                 }
             }
@@ -139,7 +142,18 @@ impl Workspace {
             .map(|s| s.to_string_lossy().to_string().to_lowercase())
             .unwrap_or_default();
 
-        self.backlinks.get(&stem).cloned().unwrap_or_default()
+        if let Some(links) = self.backlinks.get(&stem) {
+            return links.clone();
+        }
+
+        let rel = path
+            .strip_prefix(&self.root_dir)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_lowercase();
+        let rel_clean = rel.strip_suffix(".md").unwrap_or(&rel);
+
+        self.backlinks.get(rel_clean).cloned().unwrap_or_default()
     }
 
     pub fn create_document(&mut self, raw_name: &str) -> Result<PathBuf> {
@@ -176,17 +190,33 @@ impl Workspace {
     }
 
     pub fn search_content(&self, query: &str) -> Vec<SearchMatch> {
-        if query.trim().is_empty() {
+        let trimmed_query = query.trim();
+        if trimmed_query.is_empty() {
             return Vec::new();
         }
 
-        let query_lower = query.to_lowercase();
+        let is_ascii = trimmed_query.is_ascii();
+        let query_bytes = trimmed_query.as_bytes();
+        let query_lower = trimmed_query.to_lowercase();
         let mut matches = Vec::new();
 
         for doc in &self.docs {
             if let Ok(content) = fs::read_to_string(&doc.path) {
                 for (idx, line) in content.lines().enumerate() {
-                    if line.to_lowercase().contains(&query_lower) {
+                    let matched = if is_ascii {
+                        let line_bytes = line.as_bytes();
+                        if line_bytes.len() >= query_bytes.len() {
+                            line_bytes
+                                .windows(query_bytes.len())
+                                .any(|window| window.eq_ignore_ascii_case(query_bytes))
+                        } else {
+                            false
+                        }
+                    } else {
+                        line.to_lowercase().contains(&query_lower)
+                    };
+
+                    if matched {
                         matches.push(SearchMatch {
                             file_path: doc.path.clone(),
                             relative_path: doc.relative_path.clone(),
@@ -318,7 +348,7 @@ echo "Gracefully reloading service on $(hostname)..."
 
 ---
 
-Back to [[daily]] or [[welcome]].
+### Back to [[daily]] or [[welcome]].
 "#;
             fs::write(&fleet_path, fleet)?;
         }
@@ -385,5 +415,40 @@ Back to [[welcome]].
         }
 
         Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_title() {
+        let doc = "# My Custom Title\n\nSome body text";
+        assert_eq!(Workspace::extract_title(doc, "fallback"), "My Custom Title");
+
+        let doc_no_title = "Just text\nAnother line";
+        assert_eq!(Workspace::extract_title(doc_no_title, "fallback"), "fallback");
+    }
+
+    #[test]
+    fn test_search_content_ascii_and_unicode() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut ws = Workspace::new(temp_dir.path().to_path_buf()).unwrap();
+
+        let doc_path = ws.create_document("search_test.md").unwrap();
+        fs::write(&doc_path, "# Search Title\nLine with QuickBrownFox\nUnicode: 🚀 RocketLaunch\n").unwrap();
+        ws.refresh().unwrap();
+
+        // ASCII case-insensitive match
+        let matches = ws.search_content("quickbrown");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].line_number, 2);
+
+        // Unicode match
+        let matches_unicode = ws.search_content("Rocket");
+        assert_eq!(matches_unicode.len(), 1);
+        assert_eq!(matches_unicode[0].line_number, 3);
     }
 }

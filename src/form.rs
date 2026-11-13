@@ -1,8 +1,13 @@
 use regex::Regex;
 use ropey::Rope;
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use crate::editor::TextBuffer;
+
+static PARAM_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\{\{param:(input|select|toggle|secret):([a-zA-Z0-9_-]+)(?:=([^}]*))?\}\}").unwrap()
+});
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FormParamType {
@@ -65,8 +70,8 @@ pub struct FormParser;
 
 impl FormParser {
     /// Regex pattern matching {{param:type:NAME=value}} or {{param:secret:NAME}}
-    fn regex() -> Regex {
-        Regex::new(r"\{\{param:(input|select|toggle|secret):([a-zA-Z0-9_-]+)(?:=([^}]+))?\}\}").unwrap()
+    pub fn regex() -> &'static Regex {
+        &PARAM_REGEX
     }
 
     /// Parses all parameters on a single line string
@@ -175,13 +180,13 @@ impl FormParser {
             return None;
         }
 
-        if let Some(curr) = Self::find_at_cursor(buffer, line, col) {
-            if let Some(pos) = all.iter().position(|p| p.name == curr.name && p.line == curr.line && p.start_col == curr.start_col) {
-                if pos + 1 < all.len() {
-                    return Some(all[pos + 1].clone());
-                } else {
-                    return all.first().cloned();
-                }
+        if let Some(pos) = Self::find_at_cursor(buffer, line, col)
+            .and_then(|curr| all.iter().position(|p| p.name == curr.name && p.line == curr.line && p.start_col == curr.start_col))
+        {
+            if pos + 1 < all.len() {
+                return Some(all[pos + 1].clone());
+            } else {
+                return all.first().cloned();
             }
         }
 
@@ -201,13 +206,13 @@ impl FormParser {
             return None;
         }
 
-        if let Some(curr) = Self::find_at_cursor(buffer, line, col) {
-            if let Some(pos) = all.iter().position(|p| p.name == curr.name && p.line == curr.line && p.start_col == curr.start_col) {
-                if pos == 0 {
-                    return all.last().cloned();
-                } else {
-                    return Some(all[pos - 1].clone());
-                }
+        if let Some(pos) = Self::find_at_cursor(buffer, line, col)
+            .and_then(|curr| all.iter().position(|p| p.name == curr.name && p.line == curr.line && p.start_col == curr.start_col))
+        {
+            if pos == 0 {
+                return all.last().cloned();
+            } else {
+                return Some(all[pos - 1].clone());
             }
         }
 
@@ -220,10 +225,12 @@ impl FormParser {
         all.last().cloned()
     }
 
-    /// Cycles or toggles a parameter at cursor position
+    /// Cycles or toggles a parameter at cursor position:
+    ///
     /// - For Toggle: toggles true <-> false
     /// - For Select: rotates options so next option is first
-    /// Returns (param_name, new_value) if toggled/cycled
+    ///
+    /// Returns `(param_name, new_value)` if toggled/cycled.
     pub fn toggle_or_cycle_at_cursor(buffer: &mut TextBuffer) -> Option<(String, String)> {
         let line = buffer.cursor_line;
         let col = buffer.cursor_col;
@@ -277,6 +284,10 @@ impl FormParser {
         end_col: usize,
         new_text: &str,
     ) {
+        if line >= buffer.line_count() {
+            return;
+        }
+        buffer.push_undo_state();
         let line_start = buffer.rope.line_to_char(line);
         let start_char = line_start + start_col;
         let end_char = line_start + end_col;
@@ -431,5 +442,16 @@ mod tests {
 
         assert!(FormParser::update_param_in_buffer(&mut buffer, "SSH_KEY", "new_secure_key"));
         assert!(buffer.get_text().contains("{{param:secret:SSH_KEY=new_secure_key}}"));
+    }
+
+    #[test]
+    fn test_parse_empty_param_value() {
+        let line = "Empty input: {{param:input:EMPTY=}} and secret: {{param:secret:KEY}}";
+        let params = FormParser::parse_line(0, line);
+        assert_eq!(params.len(), 2);
+        assert_eq!(params[0].name, "EMPTY");
+        assert_eq!(params[0].value, "");
+        assert_eq!(params[1].name, "KEY");
+        assert_eq!(params[1].value, "");
     }
 }

@@ -13,11 +13,31 @@ pub struct TableData {
 
 impl TableData {
     pub fn new(headers: Vec<String>, rows: Vec<Vec<String>>) -> Self {
-        Self {
+        let mut data = Self {
             headers,
             rows,
             selected_row: 0,
             raw_json: None,
+        };
+        data.clamp_selected_row();
+        data
+    }
+
+    /// Clamps selected_row to valid range [0, rows.len())
+    pub fn clamp_selected_row(&mut self) {
+        if self.rows.is_empty() {
+            self.selected_row = 0;
+        } else if self.selected_row >= self.rows.len() {
+            self.selected_row = self.rows.len() - 1;
+        }
+    }
+
+    /// Selects a specific row index safely bounded
+    pub fn select_row(&mut self, idx: usize) {
+        if self.rows.is_empty() {
+            self.selected_row = 0;
+        } else {
+            self.selected_row = idx.min(self.rows.len() - 1);
         }
     }
 
@@ -51,6 +71,10 @@ impl TableData {
                         }
                     }
 
+                    if headers.is_empty() {
+                        return None;
+                    }
+
                     let mut rows = Vec::new();
                     for item in &items {
                         if let Some(obj) = item.as_object() {
@@ -66,6 +90,10 @@ impl TableData {
                             }
                             rows.push(row);
                         }
+                    }
+
+                    if rows.is_empty() {
+                        return None;
                     }
 
                     Some(Self {
@@ -87,18 +115,33 @@ impl TableData {
                         })
                         .collect();
 
+                    if headers.is_empty() {
+                        return None;
+                    }
+
                     let mut rows = Vec::new();
                     for item in items.iter().skip(1) {
                         if let Some(arr) = item.as_array() {
-                            let row: Vec<String> = arr
+                            let mut row: Vec<String> = arr
                                 .iter()
                                 .map(|v| match v {
                                     serde_json::Value::String(s) => s.clone(),
                                     other => other.to_string(),
                                 })
                                 .collect();
+
+                            // Align columns with header count to prevent out-of-bounds access
+                            if row.len() < headers.len() {
+                                row.resize(headers.len(), String::new());
+                            } else if row.len() > headers.len() {
+                                row.truncate(headers.len());
+                            }
                             rows.push(row);
                         }
+                    }
+
+                    if rows.is_empty() {
+                        return None;
                     }
 
                     Some(Self {
@@ -273,13 +316,15 @@ impl TableData {
         let blocks = crate::runner::Runner::all_code_blocks(buffer);
 
         for (idx, block) in blocks.into_iter().enumerate() {
-            if let Some(out) = block.existing_output {
-                if let Some(tbl) = Self::parse(&out.output_text) {
-                    tables.insert(format!("block_{}", idx), tbl.clone());
-                    tables.insert(block.id.clone(), tbl.clone());
-                    if let Some(name) = block.name {
-                        tables.insert(name, tbl);
-                    }
+            if let Some(tbl) = block
+                .existing_output
+                .as_ref()
+                .and_then(|out| Self::parse(&out.output_text))
+            {
+                tables.insert(format!("block_{}", idx), tbl.clone());
+                tables.insert(block.id.clone(), tbl.clone());
+                if let Some(name) = block.name {
+                    tables.insert(name, tbl);
                 }
             }
         }
@@ -335,5 +380,25 @@ mod tests {
 
         let row_json = table.get_selected_row_json().unwrap();
         assert!(row_json.contains("\"user\":\"bob\""));
+    }
+
+    #[test]
+    fn test_array_of_arrays_column_alignment() {
+        let json = r#"[
+            ["col1", "col2", "col3"],
+            ["a", "b"],
+            ["c", "d", "e", "f"]
+        ]"#;
+        let table = TableData::parse(json).expect("Failed to parse array-of-arrays");
+        assert_eq!(table.headers, vec!["col1", "col2", "col3"]);
+        assert_eq!(table.rows.len(), 2);
+        // Short row aligned with empty string
+        assert_eq!(table.rows[0], vec!["a", "b", ""]);
+        // Long row truncated to header length
+        assert_eq!(table.rows[1], vec!["c", "d", "e"]);
+        // Safe indexing
+        assert_eq!(table.get_cell(0, "col3"), Some(""));
+        assert_eq!(table.get_cell(1, "col3"), Some("e"));
+        assert_eq!(table.get_cell(99, "col1"), None);
     }
 }

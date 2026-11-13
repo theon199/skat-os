@@ -99,12 +99,15 @@ async fn test_collab_server_and_client_handshake_and_doc_sync() {
     // Alice should receive PeerJoined message for Bob
     let mut received_joined = false;
     for _ in 0..10 {
-        if let Some(msg) = alice.try_recv() {
+        while let Some(msg) = alice.try_recv() {
             if let CollabMessage::PeerJoined { peer } = msg {
                 assert_eq!(peer.name, "Bob");
                 received_joined = true;
                 break;
             }
+        }
+        if received_joined {
+            break;
         }
         sleep(Duration::from_millis(20)).await;
     }
@@ -204,13 +207,13 @@ async fn test_multi_client_cursor_broadcast() {
     let mut cursor_received = false;
     for _ in 0..20 {
         while let Some(msg) = bob.try_recv() {
-            if let CollabMessage::CursorMove { peer_id, line, col } = msg {
-                if peer_id == alice.my_id {
-                    assert_eq!(line, 2);
-                    assert_eq!(col, 4);
-                    cursor_received = true;
-                    break;
-                }
+            if let CollabMessage::CursorMove { peer_id, line, col } = msg
+                && peer_id == alice.my_id
+            {
+                assert_eq!(line, 2);
+                assert_eq!(col, 4);
+                cursor_received = true;
+                break;
             }
         }
         if cursor_received {
@@ -304,7 +307,7 @@ async fn test_client_disconnect_handling() {
 
     // Consume Bob's joined notification on Alice
     sleep(Duration::from_millis(50)).await;
-    while let Some(_) = alice.try_recv() {}
+    while alice.try_recv().is_some() {}
 
     // Bob disconnects (drop bob)
     drop(bob);
@@ -313,11 +316,11 @@ async fn test_client_disconnect_handling() {
     let mut left_received = false;
     for _ in 0..20 {
         while let Some(msg) = alice.try_recv() {
-            if let CollabMessage::PeerLeft { peer_id } = msg {
-                if peer_id == bob_id {
-                    left_received = true;
-                    break;
-                }
+            if let CollabMessage::PeerLeft { peer_id } = msg
+                && peer_id == bob_id
+            {
+                left_received = true;
+                break;
             }
         }
         if left_received {
@@ -425,11 +428,11 @@ async fn test_multi_peer_task_checkbox_toggling() {
     let mut alice_received_toggle = false;
     for _ in 0..25 {
         while let Some(msg) = alice.try_recv() {
-            if let CollabMessage::ToggleTask { peer_id: _, line, checked } = msg {
-                if line == 2 && checked {
-                    assert!(alice_buf.set_task_checked(line, checked));
-                    alice_received_toggle = true;
-                }
+            if let CollabMessage::ToggleTask { peer_id: _, line, checked } = msg
+                && line == 2 && checked
+            {
+                assert!(alice_buf.set_task_checked(line, checked));
+                alice_received_toggle = true;
             }
         }
         if alice_received_toggle {
@@ -860,11 +863,11 @@ async fn test_multi_peer_parameterized_runbook_execution() {
     let mut alice_received = false;
     for _ in 0..50 {
         while let Some(msg) = alice.try_recv() {
-            if let CollabMessage::ParamUpdate { param_name, value, .. } = msg {
-                if param_name == "REGION" && value == "eu-central-1" {
-                    FormParser::update_param_in_buffer(&mut alice_buf, &param_name, &value);
-                    alice_received = true;
-                }
+            if let CollabMessage::ParamUpdate { param_name, value, .. } = msg
+                && param_name == "REGION" && value == "eu-central-1"
+            {
+                FormParser::update_param_in_buffer(&mut alice_buf, &param_name, &value);
+                alice_received = true;
             }
         }
         if alice_received {
@@ -901,11 +904,11 @@ async fn test_multi_peer_parameterized_runbook_execution() {
     let mut bob_client = bob;
     for _ in 0..50 {
         while let Some(msg) = bob_client.try_recv() {
-            if let CollabMessage::OutputUpdate { block_id, text, exit_code, .. } = msg {
-                if block_id == block.id && exit_code == 0 {
-                    Runner::apply_output_by_id(&mut bob_buf, &block_id, &text, exit_code);
-                    bob_received_exec = true;
-                }
+            if let CollabMessage::OutputUpdate { block_id, text, exit_code, .. } = msg
+                && block_id == block.id && exit_code == 0
+            {
+                Runner::apply_output_by_id(&mut bob_buf, &block_id, &text, exit_code);
+                bob_received_exec = true;
             }
         }
         if bob_received_exec {
@@ -917,6 +920,77 @@ async fn test_multi_peer_parameterized_runbook_execution() {
     assert!(bob_received_exec);
     assert_eq!(alice_buf.get_text(), bob_buf.get_text());
     assert!(bob_buf.get_text().contains("Deploying to eu-central-1 (eu-central-1)"));
+
+    server_handle.stop();
+}
+
+#[tokio::test]
+async fn test_collab_cursor_deduplication_and_disconnection_stress() {
+    let doc = "# Collaborative Session\nLine 1\nLine 2\nLine 3\nLine 4\n";
+    let server_handle = CollabServer::bind("127.0.0.1:0", doc.to_string(), "session.md".to_string())
+        .await
+        .expect("Server should bind");
+    let addr = format!("127.0.0.1:{}", server_handle.local_addr.port());
+
+    let alice = CollabClient::connect(&addr, "Alice".to_string()).await.unwrap();
+    let mut bob = CollabClient::connect(&addr, "Bob".to_string()).await.unwrap();
+
+    assert!(alice.is_connected());
+    assert!(bob.is_connected());
+
+    let alice_id = alice.my_id.clone();
+
+    // Consume joined notifications
+    sleep(Duration::from_millis(50)).await;
+    while bob.try_recv().is_some() {}
+
+    // Alice sends 10 identical cursor move updates in rapid succession
+    for _ in 0..10 {
+        alice.send_cursor_move(4, 12);
+    }
+
+    // Bob should receive deduplicated cursor move (only 1)
+    let mut cursor_moves = 0;
+    for _ in 0..25 {
+        while let Some(msg) = bob.try_recv() {
+            if let CollabMessage::CursorMove { peer_id, line, col } = msg
+                && peer_id == alice_id && line == 4 && col == 12
+            {
+                cursor_moves += 1;
+            }
+        }
+        sleep(Duration::from_millis(15)).await;
+    }
+    assert_eq!(cursor_moves, 1, "Redundant cursor moves must be deduplicated across TCP broadcast");
+
+    // Alice disconnects
+    drop(alice);
+
+    // Bob must receive PeerLeft
+    let mut alice_left = false;
+    for _ in 0..25 {
+        while let Some(msg) = bob.try_recv() {
+            if let CollabMessage::PeerLeft { peer_id } = msg
+                && peer_id == alice_id
+            {
+                alice_left = true;
+                break;
+            }
+        }
+        if alice_left {
+            break;
+        }
+        sleep(Duration::from_millis(15)).await;
+    }
+
+    assert!(alice_left, "Bob must receive PeerLeft notification upon Alice disconnect");
+
+    // Server state must have cleaned up Alice
+    {
+        let state = server_handle.state.lock().await;
+        assert_eq!(state.peers.len(), 1);
+        assert!(!state.peers.contains_key(&alice_id));
+    }
 
     server_handle.stop();
 }

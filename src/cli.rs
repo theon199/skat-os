@@ -20,10 +20,10 @@ pub enum CliCommand {
 }
 
 pub fn resolve_default_workspace() -> PathBuf {
-    if let Ok(env_ws) = std::env::var("SKAT_WORKSPACE") {
-        if !env_ws.trim().is_empty() {
-            return expand_path(env_ws.trim());
-        }
+    if let Ok(env_ws) = std::env::var("SKAT_WORKSPACE")
+        && !env_ws.trim().is_empty()
+    {
+        return expand_path(env_ws.trim());
     }
 
     let local_docs = PathBuf::from("./docs");
@@ -39,13 +39,13 @@ pub fn resolve_default_workspace() -> PathBuf {
 }
 
 pub fn expand_path(raw: &str) -> PathBuf {
-    if raw.starts_with("~/") || raw == "~" {
-        if let Ok(home) = std::env::var("HOME") {
-            if raw == "~" {
-                return PathBuf::from(home);
-            } else {
-                return PathBuf::from(home).join(&raw[2..]);
-            }
+    if (raw.starts_with("~/") || raw == "~")
+        && let Ok(home) = std::env::var("HOME")
+    {
+        if raw == "~" {
+            return PathBuf::from(home);
+        } else {
+            return PathBuf::from(home).join(&raw[2..]);
         }
     }
     PathBuf::from(raw)

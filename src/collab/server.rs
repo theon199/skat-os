@@ -73,20 +73,13 @@ impl CollabServer {
 
         let state_clone = Arc::clone(&state);
         let server_task = tokio::spawn(async move {
-            loop {
-                match listener.accept().await {
-                    Ok((socket, remote_addr)) => {
-                        let state = Arc::clone(&state_clone);
-                        tokio::spawn(async move {
-                            if let Err(e) = Self::handle_connection(socket, remote_addr, state).await {
-                                eprintln!("[CollabServer] Error handling {}: {}", remote_addr, e);
-                            }
-                        });
+            while let Ok((socket, remote_addr)) = listener.accept().await {
+                let state = Arc::clone(&state_clone);
+                tokio::spawn(async move {
+                    if let Err(e) = Self::handle_connection(socket, remote_addr, state).await {
+                        eprintln!("[CollabServer] Error handling {}: {}", remote_addr, e);
                     }
-                    Err(_) => {
-                        break;
-                    }
-                }
+                });
             }
         });
 
@@ -146,151 +139,163 @@ impl CollabServer {
             (id, color, sync, joined, rx)
         };
 
-        // 3. Send DocSync to the new client
-        let sync_line = serde_json::to_string(&doc_sync_msg)? + "\n";
-        write_half.write_all(sync_line.as_bytes()).await?;
-        write_half.flush().await?;
+        // Inner processing block with error handling
+        let run_result: Result<()> = async {
+            // 3. Send DocSync to the new client
+            let mut sync_bytes = serde_json::to_vec(&doc_sync_msg)?;
+            sync_bytes.push(b'\n');
+            write_half.write_all(&sync_bytes).await?;
+            write_half.flush().await?;
 
-        // 4. Spawn writer task for this client
-        let writer_task = tokio::spawn(async move {
-            while let Some(msg) = peer_rx.recv().await {
-                if let Ok(line) = serde_json::to_string(&msg) {
-                    if write_half.write_all((line + "\n").as_bytes()).await.is_err() {
-                        break;
-                    }
-                    if write_half.flush().await.is_err() {
-                        break;
+            // 4. Spawn writer task for this client
+            let writer_task = tokio::spawn(async move {
+                while let Some(msg) = peer_rx.recv().await {
+                    if let Ok(mut bytes) = serde_json::to_vec(&msg) {
+                        bytes.push(b'\n');
+                        if write_half.write_all(&bytes).await.is_err() || write_half.flush().await.is_err() {
+                            break;
+                        }
                     }
                 }
-            }
-        });
+            });
 
-        // 5. Read incoming operations loop
-        let mut line_buf = String::new();
-        loop {
-            line_buf.clear();
-            let n = reader.read_line(&mut line_buf).await?;
-            if n == 0 {
-                // Client disconnected
-                break;
-            }
+            // 5. Read incoming operations loop
+            let mut line_buf = String::new();
+            loop {
+                line_buf.clear();
+                let n = reader.read_line(&mut line_buf).await?;
+                if n == 0 {
+                    // Client disconnected
+                    break;
+                }
 
-            let trimmed = line_buf.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
+                let trimmed = line_buf.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
 
-            if let Ok(msg) = serde_json::from_str::<CollabMessage>(trimmed) {
-                let mut s = state.lock().await;
-                match &msg {
-                    CollabMessage::InsertChar { peer_id: _, pos, char } => {
-                        let rope_len = s.content.len_chars();
-                        let idx = (*pos).min(rope_len);
-                        s.content.insert_char(idx, *char);
-                        s.version += 1;
-                        s.broadcast(&peer_id, &msg);
-                    }
-                    CollabMessage::DeleteChar { peer_id: _, pos } => {
-                        let rope_len = s.content.len_chars();
-                        if *pos < rope_len {
-                            s.content.remove(*pos..(*pos + 1));
+                if let Ok(msg) = serde_json::from_str::<CollabMessage>(trimmed) {
+                    let mut s = state.lock().await;
+                    match &msg {
+                        CollabMessage::InsertChar { peer_id: _, pos, char } => {
+                            let rope_len = s.content.len_chars();
+                            let idx = (*pos).min(rope_len);
+                            s.content.insert_char(idx, *char);
                             s.version += 1;
                             s.broadcast(&peer_id, &msg);
                         }
-                    }
-                    CollabMessage::CursorMove { peer_id: _, line, col } => {
-                        if let Some(peer) = s.peers.get_mut(&peer_id) {
-                            peer.cursor_line = *line;
-                            peer.cursor_col = *col;
-                        }
-                        s.broadcast(&peer_id, &msg);
-                    }
-                    CollabMessage::RunBlock { .. } => {
-                        s.broadcast(&peer_id, &msg);
-                    }
-                    CollabMessage::OutputUpdate { peer_id: _, block_id: _, text: _, exit_code: _ } => {
-                        s.broadcast(&peer_id, &msg);
-                    }
-                    CollabMessage::ToggleTask { peer_id: _, line, checked } => {
-                        if *line < s.content.len_lines() {
-                            let line_str = s.content.line(*line).to_string();
-                            if let Some(info) = crate::editor::buffer::TextBuffer::parse_task_item(&line_str) {
-                                let line_start = s.content.line_to_char(*line);
-                                let char_pos = line_start + info.check_char_col;
-                                if char_pos < s.content.len_chars() {
-                                    s.content.remove(char_pos..char_pos + 1);
-                                    s.content.insert_char(char_pos, if *checked { 'x' } else { ' ' });
-                                    s.version += 1;
-                                }
+                        CollabMessage::DeleteChar { peer_id: _, pos } => {
+                            let rope_len = s.content.len_chars();
+                            if *pos < rope_len {
+                                s.content.remove(*pos..(*pos + 1));
+                                s.version += 1;
+                                s.broadcast(&peer_id, &msg);
                             }
                         }
-                        s.broadcast(&peer_id, &msg);
-                    }
-                    CollabMessage::StreamStart { .. } => {
-                        s.broadcast(&peer_id, &msg);
-                    }
-                    CollabMessage::StreamChunk { .. } => {
-                        s.broadcast(&peer_id, &msg);
-                    }
-                    CollabMessage::StreamEnd { .. } => {
-                        s.broadcast(&peer_id, &msg);
-                    }
-                    CollabMessage::ParamUpdate { peer_id: _, param_name, value } => {
-                        crate::form::FormParser::update_param_in_rope(&mut s.content, param_name, value);
-                        s.version += 1;
-                        s.broadcast(&peer_id, &msg);
-                    }
-                    CollabMessage::ApprovalRequest { peer_id: _, block_id, command_preview, required_approvals } => {
-                        let mut consensus = ApprovalConsensus::new(
-                            block_id.clone(),
-                            command_preview.clone(),
-                            *required_approvals,
-                        );
-                        consensus.add_approval(client_name.clone());
-                        let count = consensus.current_count();
-                        let req = consensus.required_approvals;
-                        let approved = consensus.is_approved();
-                        s.pending_approvals.insert(block_id.clone(), consensus);
-                        s.broadcast(&peer_id, &msg);
-                        let status_msg = CollabMessage::ApprovalStatus {
-                            block_id: block_id.clone(),
-                            approvals_count: count,
-                            required_approvals: req,
-                            approved,
-                        };
-                        s.broadcast_to_all(&status_msg);
-                    }
-                    CollabMessage::ApprovalVote { peer_id: _, block_id, approver_name } => {
-                        let mut status_msg = None;
-                        if let Some(consensus) = s.pending_approvals.get_mut(block_id) {
-                            let approved = consensus.add_approval(approver_name.clone());
-                            status_msg = Some(CollabMessage::ApprovalStatus {
+                        CollabMessage::CursorMove { peer_id: _, line, col } => {
+                            let changed = if let Some(peer) = s.peers.get_mut(&peer_id) {
+                                if peer.cursor_line != *line || peer.cursor_col != *col {
+                                    peer.cursor_line = *line;
+                                    peer.cursor_col = *col;
+                                    true
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            };
+                            if changed {
+                                s.broadcast(&peer_id, &msg);
+                            }
+                        }
+                        CollabMessage::RunBlock { .. } => {
+                            s.broadcast(&peer_id, &msg);
+                        }
+                        CollabMessage::OutputUpdate { peer_id: _, block_id: _, text: _, exit_code: _ } => {
+                            s.broadcast(&peer_id, &msg);
+                        }
+                        CollabMessage::ToggleTask { peer_id: _, line, checked } => {
+                            if *line < s.content.len_lines() {
+                                let line_str = s.content.line(*line).to_string();
+                                if let Some(info) = crate::editor::buffer::TextBuffer::parse_task_item(&line_str) {
+                                    let line_start = s.content.line_to_char(*line);
+                                    let char_pos = line_start + info.check_char_col;
+                                    if char_pos < s.content.len_chars() {
+                                        s.content.remove(char_pos..char_pos + 1);
+                                        s.content.insert_char(char_pos, if *checked { 'x' } else { ' ' });
+                                        s.version += 1;
+                                    }
+                                }
+                            }
+                            s.broadcast(&peer_id, &msg);
+                        }
+                        CollabMessage::StreamStart { .. } => {
+                            s.broadcast(&peer_id, &msg);
+                        }
+                        CollabMessage::StreamChunk { .. } => {
+                            s.broadcast(&peer_id, &msg);
+                        }
+                        CollabMessage::StreamEnd { .. } => {
+                            s.broadcast(&peer_id, &msg);
+                        }
+                        CollabMessage::ParamUpdate { peer_id: _, param_name, value } => {
+                            crate::form::FormParser::update_param_in_rope(&mut s.content, param_name, value);
+                            s.version += 1;
+                            s.broadcast(&peer_id, &msg);
+                        }
+                        CollabMessage::ApprovalRequest { peer_id: _, block_id, command_preview, required_approvals } => {
+                            let mut consensus = ApprovalConsensus::new(
+                                block_id.clone(),
+                                command_preview.clone(),
+                                *required_approvals,
+                            );
+                            consensus.add_approval(client_name.clone());
+                            let count = consensus.current_count();
+                            let req = consensus.required_approvals;
+                            let approved = consensus.is_approved();
+                            s.pending_approvals.insert(block_id.clone(), consensus);
+                            s.broadcast(&peer_id, &msg);
+                            let status_msg = CollabMessage::ApprovalStatus {
                                 block_id: block_id.clone(),
-                                approvals_count: consensus.current_count(),
-                                required_approvals: consensus.required_approvals,
+                                approvals_count: count,
+                                required_approvals: req,
                                 approved,
-                            });
+                            };
+                            s.broadcast_to_all(&status_msg);
                         }
-                        s.broadcast(&peer_id, &msg);
-                        if let Some(status) = status_msg {
-                            s.broadcast_to_all(&status);
+                        CollabMessage::ApprovalVote { peer_id: _, block_id, approver_name } => {
+                            let mut status_msg = None;
+                            if let Some(consensus) = s.pending_approvals.get_mut(block_id) {
+                                let approved = consensus.add_approval(approver_name.clone());
+                                status_msg = Some(CollabMessage::ApprovalStatus {
+                                    block_id: block_id.clone(),
+                                    approvals_count: consensus.current_count(),
+                                    required_approvals: consensus.required_approvals,
+                                    approved,
+                                });
+                            }
+                            s.broadcast(&peer_id, &msg);
+                            if let Some(status) = status_msg {
+                                s.broadcast_to_all(&status);
+                            }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
-        }
+            writer_task.abort();
+            Ok(())
+        }.await;
 
-        // 6. Cleanup on disconnect
-        writer_task.abort();
+        // 6. Cleanup on disconnect (guaranteed to run even if sending DocSync or stream reading fails)
         {
             let mut s = state.lock().await;
             s.peers.remove(&peer_id);
             s.peer_senders.remove(&peer_id);
-            let left_msg = CollabMessage::PeerLeft { peer_id: peer_id.clone() };
+            let left_msg = CollabMessage::PeerLeft { peer_id };
             s.broadcast_to_all(&left_msg);
         }
 
-        Ok(())
+        run_result
     }
 }

@@ -1,4 +1,6 @@
 use anyhow::{Context, Result};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
@@ -15,6 +17,8 @@ pub struct CollabClient {
     pub initial_peers: Vec<PeerInfo>,
     outgoing_tx: mpsc::UnboundedSender<CollabMessage>,
     pub incoming_rx: mpsc::UnboundedReceiver<CollabMessage>,
+    last_cursor: AtomicU64,
+    connected: Arc<AtomicBool>,
 }
 
 impl CollabClient {
@@ -29,8 +33,9 @@ impl CollabClient {
 
         // 1. Send JoinRequest
         let join_req = CollabMessage::JoinRequest { name: name.clone() };
-        let join_line = serde_json::to_string(&join_req)? + "\n";
-        write_half.write_all(join_line.as_bytes()).await?;
+        let mut join_bytes = serde_json::to_vec(&join_req)?;
+        join_bytes.push(b'\n');
+        write_half.write_all(&join_bytes).await?;
         write_half.flush().await?;
 
         // 2. Await DocSync
@@ -61,15 +66,16 @@ impl CollabClient {
         // 3. Channels for communication with App event loop
         let (outgoing_tx, mut outgoing_rx) = mpsc::unbounded_channel::<CollabMessage>();
         let (incoming_tx, incoming_rx) = mpsc::unbounded_channel::<CollabMessage>();
+        let connected = Arc::new(AtomicBool::new(true));
 
         // 4. Spawn writer task
+        let connected_w = Arc::clone(&connected);
         tokio::spawn(async move {
             while let Some(msg) = outgoing_rx.recv().await {
-                if let Ok(line) = serde_json::to_string(&msg) {
-                    if write_half.write_all((line + "\n").as_bytes()).await.is_err() {
-                        break;
-                    }
-                    if write_half.flush().await.is_err() {
+                if let Ok(mut bytes) = serde_json::to_vec(&msg) {
+                    bytes.push(b'\n');
+                    if write_half.write_all(&bytes).await.is_err() || write_half.flush().await.is_err() {
+                        connected_w.store(false, Ordering::SeqCst);
                         break;
                     }
                 }
@@ -77,26 +83,29 @@ impl CollabClient {
         });
 
         // 5. Spawn reader task
+        let connected_r = Arc::clone(&connected);
         tokio::spawn(async move {
             let mut line = String::new();
             loop {
                 line.clear();
                 match reader.read_line(&mut line).await {
                     Ok(0) => {
-                        // Connection closed
+                        // Connection closed cleanly by remote host
+                        connected_r.store(false, Ordering::SeqCst);
                         break;
                     }
                     Ok(_) => {
                         let trimmed = line.trim();
-                        if !trimmed.is_empty() {
-                            if let Ok(msg) = serde_json::from_str::<CollabMessage>(trimmed) {
-                                if incoming_tx.send(msg).is_err() {
-                                    break;
-                                }
-                            }
+                        if !trimmed.is_empty()
+                            && let Ok(msg) = serde_json::from_str::<CollabMessage>(trimmed)
+                            && incoming_tx.send(msg).is_err()
+                        {
+                            connected_r.store(false, Ordering::SeqCst);
+                            break;
                         }
                     }
                     Err(_) => {
+                        connected_r.store(false, Ordering::SeqCst);
                         break;
                     }
                 }
@@ -111,7 +120,13 @@ impl CollabClient {
             initial_peers,
             outgoing_tx,
             incoming_rx,
+            last_cursor: AtomicU64::new(u64::MAX),
+            connected,
         })
+    }
+
+    pub fn is_connected(&self) -> bool {
+        self.connected.load(Ordering::SeqCst)
     }
 
     pub fn send(&self, msg: CollabMessage) {
@@ -138,6 +153,10 @@ impl CollabClient {
     }
 
     pub fn send_cursor_move(&self, line: usize, col: usize) {
+        let packed = ((line as u64) << 32) | (col as u32 as u64);
+        if self.last_cursor.swap(packed, Ordering::Relaxed) == packed {
+            return;
+        }
         self.send(CollabMessage::CursorMove {
             peer_id: self.my_id.clone(),
             line,

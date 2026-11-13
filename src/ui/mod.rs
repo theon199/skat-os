@@ -22,6 +22,15 @@ use crate::ui::sidebar::SidebarView;
 use crate::ui::status_bar::StatusBarView;
 use crate::ui::theme::Theme;
 
+pub struct ConfirmModalParams<'a> {
+    pub prompt: &'a str,
+    pub command: &'a str,
+    pub target_hosts: &'a [String],
+    pub danger_level: DangerLevel,
+    pub keyword_required: Option<&'a str>,
+    pub keyword_input: &'a str,
+}
+
 pub struct UI;
 
 impl UI {
@@ -95,12 +104,14 @@ impl UI {
                 ..
             } => {
                 Self::render_confirm_execution_modal(
-                    prompt,
-                    command,
-                    target_hosts,
-                    *danger_level,
-                    keyword_required.as_deref(),
-                    keyword_input,
+                    ConfirmModalParams {
+                        prompt,
+                        command,
+                        target_hosts,
+                        danger_level: *danger_level,
+                        keyword_required: keyword_required.as_deref(),
+                        keyword_input,
+                    },
                     frame,
                     size,
                 );
@@ -190,17 +201,12 @@ impl UI {
     }
 
     fn render_confirm_execution_modal(
-        prompt: &str,
-        command: &str,
-        target_hosts: &[String],
-        danger_level: DangerLevel,
-        keyword_required: Option<&str>,
-        keyword_input: &str,
+        params: ConfirmModalParams,
         frame: &mut Frame,
         area: Rect,
     ) {
         let width = 72.min(area.width.saturating_sub(4)).max(40);
-        let height = if keyword_required.is_some() { 12 } else { 9 }.min(area.height.saturating_sub(2));
+        let height = if params.keyword_required.is_some() { 12 } else { 9 }.min(area.height.saturating_sub(2));
 
         let x = area.x + (area.width.saturating_sub(width)) / 2;
         let y = area.y + (area.height.saturating_sub(height)) / 2;
@@ -208,7 +214,7 @@ impl UI {
 
         frame.render_widget(Clear, popup_area);
 
-        let is_critical = danger_level >= DangerLevel::High;
+        let is_critical = params.danger_level >= DangerLevel::High;
         let border_style = if is_critical {
             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
         } else {
@@ -216,7 +222,7 @@ impl UI {
         };
 
         let title_str = if is_critical {
-            format!(" ⚠ SAFETY CONFIRMATION GATE [{}] ", danger_level)
+            format!(" ⚠ SAFETY CONFIRMATION GATE [{}] ", params.danger_level)
         } else {
             " ⚠ SAFETY CONFIRMATION GATE ".to_string()
         };
@@ -229,18 +235,18 @@ impl UI {
         let inner = block.inner(popup_area);
         frame.render_widget(block, popup_area);
 
-        let targets_str = if target_hosts.is_empty() {
+        let targets_str = if params.target_hosts.is_empty() {
             "localhost".to_string()
         } else {
-            target_hosts.join(", ")
+            params.target_hosts.join(", ")
         };
 
-        let cmd_preview: String = command.lines().next().unwrap_or(command).chars().take(55).collect();
+        let cmd_preview: String = params.command.lines().next().unwrap_or(params.command).chars().take(55).collect();
 
         let mut lines = vec![
             Line::from(vec![
                 Span::styled("Warning: ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-                Span::styled(prompt.to_string(), Style::default().fg(Color::White)),
+                Span::styled(params.prompt.to_string(), Style::default().fg(Color::White)),
             ]),
             Line::from(vec![
                 Span::styled("Target Hosts: ", Style::default().fg(Color::Cyan)),
@@ -253,10 +259,10 @@ impl UI {
             Line::from(""),
         ];
 
-        if let Some(kw) = keyword_required {
+        if let Some(kw) = params.keyword_required {
             lines.push(Line::from(vec![
                 Span::styled(format!("Type '{}' to confirm: ", kw), Style::default().fg(Color::LightRed).add_modifier(Modifier::BOLD)),
-                Span::styled(format!("[{}]_", keyword_input), Theme::PALETTE_SELECTED),
+                Span::styled(format!("[{}]_", params.keyword_input), Theme::PALETTE_SELECTED),
             ]));
             lines.push(Line::from(""));
         }

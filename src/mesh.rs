@@ -4,11 +4,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, LazyLock};
 use std::time::Duration;
 
 use crate::editor::TextBuffer;
 use crate::runner::{ExecutionResult, StreamingHandle};
+
+static FLEET_HEADER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^===\s*\[([^\]]+)\]\s*===$").unwrap()
+});
 
 /// Global default SSH session pool for persistent connections across the application
 pub fn global_ssh_pool() -> &'static SshSessionPool {
@@ -44,6 +48,7 @@ impl SshEndpoint {
     /// - "ubuntu@10.0.0.12"
     /// - "10.0.0.12:2222"
     /// - "10.0.0.12"
+    /// - "ssh://[::1]:2222"
     pub fn parse(input: &str) -> Result<Self> {
         let trimmed = input.trim();
         if trimmed.is_empty() {
@@ -67,24 +72,33 @@ impl SshEndpoint {
         let mut password = None;
         if let Some(auth) = auth_part {
             if let Some(colon_idx) = auth.find(':') {
-                user = Some(auth[..colon_idx].to_string());
+                let u = auth[..colon_idx].trim();
+                if !u.is_empty() {
+                    user = Some(u.to_string());
+                }
                 password = Some(auth[colon_idx + 1..].to_string());
             } else {
-                user = Some(auth.to_string());
+                let u = auth.trim();
+                if !u.is_empty() {
+                    user = Some(u.to_string());
+                }
             }
         }
 
-        // Parse host and port
+        // Parse host and port, handling IPv6 bracketed hosts like [::1]:22
         let (host, port) = if let Some(colon_idx) = host_part.rfind(':') {
             let h = &host_part[..colon_idx];
             let p_str = &host_part[colon_idx + 1..];
             if let Ok(p) = p_str.parse::<u16>() {
-                (h.to_string(), p)
+                let clean_h = h.trim_matches(|c| c == '[' || c == ']');
+                (clean_h.to_string(), p)
             } else {
-                (host_part.to_string(), 22)
+                let clean_h = host_part.trim_matches(|c| c == '[' || c == ']');
+                (clean_h.to_string(), 22)
             }
         } else {
-            (host_part.to_string(), 22)
+            let clean_h = host_part.trim_matches(|c| c == '[' || c == ']');
+            (clean_h.to_string(), 22)
         };
 
         if host.is_empty() {
@@ -174,12 +188,11 @@ impl HostRegistry {
             None
         };
 
-        if let Some(path) = target_path {
-            if let Ok(content) = std::fs::read_to_string(&path) {
-                if let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(&content) {
-                    Self::extract_groups_from_yaml_value(&value, &mut groups);
-                }
-            }
+        if let Some(path) = target_path
+            && let Ok(content) = std::fs::read_to_string(&path)
+            && let Ok(value) = serde_yaml::from_str::<serde_yaml::Value>(&content)
+        {
+            Self::extract_groups_from_yaml_value(&value, &mut groups);
         }
 
         groups
@@ -251,19 +264,19 @@ impl HostRegistry {
             // 1. Check frontmatter
             if let Some(buf) = buffer {
                 let fm_groups = Self::parse_frontmatter(buf);
-                if let Some(hosts) = fm_groups.get(group_name) {
-                    if !hosts.is_empty() {
-                        return Ok(hosts.clone());
-                    }
+                if let Some(hosts) = fm_groups.get(group_name)
+                    && !hosts.is_empty()
+                {
+                    return Ok(hosts.clone());
                 }
             }
 
             // 2. Check hosts.yaml in root_dir
             let file_groups = Self::parse_hosts_file(root_dir);
-            if let Some(hosts) = file_groups.get(group_name) {
-                if !hosts.is_empty() {
-                    return Ok(hosts.clone());
-                }
+            if let Some(hosts) = file_groups.get(group_name)
+                && !hosts.is_empty()
+            {
+                return Ok(hosts.clone());
             }
 
             anyhow::bail!("Unknown host group '@{}' (not defined in frontmatter or hosts.yaml)", group_name);
@@ -380,10 +393,8 @@ impl FleetOutput {
         let mut current_stderr = Vec::new();
         let mut in_stderr = false;
 
-        let header_re = Regex::new(r"^===\s*\[([^\]]+)\]\s*===$").ok()?;
-
         for line in lines {
-            if let Some(caps) = header_re.captures(line) {
+            if let Some(caps) = FLEET_HEADER_RE.captures(line) {
                 if let Some(host) = current_host.take() {
                     let out_str = current_stdout.join("\n");
                     let err_str = current_stderr.join("\n");
@@ -440,10 +451,10 @@ impl FleetOutput {
             let rest = &badge_line[idx + pattern.len()..];
             if let Some(exit_idx) = rest.find("exit ") {
                 let code_part = &rest[exit_idx + 5..];
-                if let Some(end_bracket) = code_part.find(']') {
-                    if let Ok(code) = code_part[..end_bracket].trim().parse::<i32>() {
-                        return code;
-                    }
+                if let Some(end_bracket) = code_part.find(']')
+                    && let Ok(code) = code_part[..end_bracket].trim().parse::<i32>()
+                {
+                    return code;
                 }
             }
         }
@@ -517,6 +528,18 @@ impl SshSessionPool {
         Some(handler(command, env_vars))
     }
 
+    /// Evicts an endpoint session from the pool (e.g. after network failure or disconnection)
+    pub fn evict(&self, endpoint: &SshEndpoint, proxy: Option<&SshEndpoint>) {
+        let key = PoolKey {
+            user: endpoint.user.clone(),
+            host: endpoint.host.clone(),
+            port: endpoint.port,
+            proxy: proxy.map(|p| p.to_uri()),
+        };
+        let mut pool = self.sessions.lock().unwrap();
+        pool.remove(&key);
+    }
+
     /// Returns an existing authenticated session or establishes and authenticates a new one
     pub fn get_or_connect(&self, endpoint: &SshEndpoint, proxy: Option<&SshEndpoint>) -> Result<ssh2::Session> {
         let key = PoolKey {
@@ -529,10 +552,10 @@ impl SshSessionPool {
         // 1. Check existing session in pool
         {
             let pool = self.sessions.lock().unwrap();
-            if let Some(session) = pool.get(&key) {
-                if session.authenticated() {
-                    return Ok(session.clone());
-                }
+            if let Some(session) = pool.get(&key)
+                && session.authenticated()
+            {
+                return Ok(session.clone());
             }
         }
 
@@ -629,30 +652,31 @@ impl SshSessionPool {
         });
 
         // 1. Password if provided in endpoint URI
-        if let Some(pass) = &endpoint.password {
-            if session.userauth_password(&username, pass).is_ok() && session.authenticated() {
-                return Ok(());
-            }
+        if let Some(pass) = &endpoint.password
+            && session.userauth_password(&username, pass).is_ok()
+            && session.authenticated()
+        {
+            return Ok(());
         }
 
         // 2. Password from SKAT_SSH_PASSWORD or SSH_PASSWORD environment variables
-        if let Ok(pass) = std::env::var("SKAT_SSH_PASSWORD").or_else(|_| std::env::var("SSH_PASSWORD")) {
-            if session.userauth_password(&username, &pass).is_ok() && session.authenticated() {
-                return Ok(());
-            }
+        if let Ok(pass) = std::env::var("SKAT_SSH_PASSWORD").or_else(|_| std::env::var("SSH_PASSWORD"))
+            && session.userauth_password(&username, &pass).is_ok()
+            && session.authenticated()
+        {
+            return Ok(());
         }
 
         // 3. SSH_AUTH_SOCK (ssh-agent automatic authentication)
-        if std::env::var("SSH_AUTH_SOCK").is_ok() {
-            if let Ok(mut agent) = session.agent() {
-                if agent.connect().is_ok() && agent.list_identities().is_ok() {
-                    if let Ok(identities) = agent.identities() {
-                        for identity in identities {
-                            if agent.userauth(&username, &identity).is_ok() && session.authenticated() {
-                                return Ok(());
-                            }
-                        }
-                    }
+        if std::env::var("SSH_AUTH_SOCK").is_ok()
+            && let Ok(mut agent) = session.agent()
+            && agent.connect().is_ok()
+            && agent.list_identities().is_ok()
+            && let Ok(identities) = agent.identities()
+        {
+            for identity in identities {
+                if agent.userauth(&username, &identity).is_ok() && session.authenticated() {
+                    return Ok(());
                 }
             }
         }
@@ -688,6 +712,7 @@ impl SshSessionPool {
 }
 
 /// Executes a targeted code block on a remote host over SSH with interactive PTY and streaming
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_remote_ssh_streaming<FChunk, FEnd>(
     pool: SshSessionPool,
     target: SshEndpoint,
@@ -894,6 +919,7 @@ where
 }
 
 /// Executes a code block across multiple hosts in parallel or sequentially
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_fleet_fanout<FChunk, FEnd>(
     pool: SshSessionPool,
     hosts: Vec<String>,
@@ -1045,6 +1071,8 @@ where
             // Loop to handle incoming chunks, stdin, and cancel while waiting for all tasks
             let mut completed_tasks = 0;
             let mut was_cancelled = false;
+            let start_time = tokio::time::Instant::now();
+            let fanout_timeout = Duration::from_secs(120);
 
             while completed_tasks < total_hosts {
                 tokio::select! {
@@ -1064,9 +1092,43 @@ where
                     }
                     Some(res) = join_set.join_next() => {
                         completed_tasks += 1;
-                        if let Ok((idx, host_out)) = res {
-                            host_outputs[idx] = Some(host_out);
+                        match res {
+                            Ok((idx, host_out)) => {
+                                host_outputs[idx] = Some(host_out);
+                            }
+                            Err(join_err) => {
+                                // Task panicked or was cancelled
+                                for (i, slot) in host_outputs.iter_mut().enumerate() {
+                                    if slot.is_none() {
+                                        *slot = Some(HostOutput {
+                                            host: hosts.get(i).cloned().unwrap_or_else(|| format!("host_{}", i)),
+                                            stdout: String::new(),
+                                            stderr: format!("Task execution failed: {}", join_err),
+                                            exit_code: -1,
+                                        });
+                                        break;
+                                    }
+                                }
+                            }
                         }
+                    }
+                    _ = tokio::time::sleep_until(start_time + fanout_timeout) => {
+                        // Fan-out join timeout reached: cancel remaining subtasks
+                        for ctx in cancel_sub_txs.drain(..) {
+                            let _ = ctx.send(());
+                        }
+                        join_set.abort_all();
+                        for (i, slot) in host_outputs.iter_mut().enumerate() {
+                            if slot.is_none() {
+                                *slot = Some(HostOutput {
+                                    host: hosts.get(i).cloned().unwrap_or_else(|| format!("host_{}", i)),
+                                    stdout: String::new(),
+                                    stderr: "Fleet fan-out execution timed out after 120 seconds".to_string(),
+                                    exit_code: -1,
+                                });
+                            }
+                        }
+                        break;
                     }
                 }
             }
@@ -1209,6 +1271,7 @@ where
 }
 
 /// Unified entrypoint for executing targeted code blocks (single host or fleet fan-out)
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_targeted_streaming<FChunk, FEnd>(
     pool: SshSessionPool,
     target_str: &str,
@@ -1295,6 +1358,16 @@ pub mod tests {
         assert_eq!(ep5.user, None);
         assert_eq!(ep5.host, "192.168.1.100");
         assert_eq!(ep5.port, 22);
+
+        // IPv6 bracketed host parsing
+        let ep6 = SshEndpoint::parse("ssh://ubuntu@[::1]:2222").unwrap();
+        assert_eq!(ep6.user, Some("ubuntu".to_string()));
+        assert_eq!(ep6.host, "::1");
+        assert_eq!(ep6.port, 2222);
+
+        let ep7 = SshEndpoint::parse("[fe80::1]").unwrap();
+        assert_eq!(ep7.host, "fe80::1");
+        assert_eq!(ep7.port, 22);
 
         assert!(SshEndpoint::parse("").is_err());
     }

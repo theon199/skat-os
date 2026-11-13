@@ -80,7 +80,7 @@ impl StatusBarView {
 
         // Live Tasks completion badge
         if let Some((completed, total)) = app.editor.buffer.task_stats() {
-            let pct = if total > 0 { (completed * 100) / total } else { 0 };
+            let pct = (completed * 100).checked_div(total).unwrap_or(0);
             let task_badge = format!(" ✓ Tasks: {}/{} ({}%) ", completed, total, pct);
             let task_style = if completed == total {
                 Theme::STATUS_BADGE_TASKS_COMPLETE
