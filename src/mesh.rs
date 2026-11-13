@@ -13,6 +13,27 @@ use crate::runner::{ExecutionResult, StreamingHandle};
 static FLEET_HEADER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^===\s*\[([^\]]+)\]\s*===$").unwrap());
 
+/// Loopback TCP pair used to bridge an SSH bastion channel into `ssh2`.
+///
+/// `UnixStream::pair` is Unix-only. A connected localhost pair works with
+/// `Session::set_tcp_stream` on Unix and Windows.
+fn local_stream_pair() -> Result<(std::net::TcpStream, std::net::TcpStream)> {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0")
+        .context("Failed to bind a local socket for the bastion tunnel")?;
+    let addr = listener
+        .local_addr()
+        .context("Failed to read the local bastion tunnel address")?;
+    let connector = std::thread::spawn(move || std::net::TcpStream::connect(addr));
+    let (accepted, _) = listener
+        .accept()
+        .context("Failed to accept the local bastion tunnel socket")?;
+    let connected = connector
+        .join()
+        .map_err(|_| anyhow::anyhow!("Local bastion tunnel connect thread panicked"))?
+        .context("Failed to connect the local bastion tunnel socket")?;
+    Ok((connected, accepted))
+}
+
 /// Global default SSH session pool for persistent connections across the application
 pub fn global_ssh_pool() -> &'static SshSessionPool {
     static POOL: OnceLock<SshSessionPool> = OnceLock::new();
@@ -587,9 +608,7 @@ impl SshSessionPool {
                     endpoint.host, endpoint.port
                 ))?;
 
-            use std::os::unix::net::UnixStream;
-            let (sock_local, sock_remote) = UnixStream::pair()
-                .context("Failed to create local stream pair for bastion tunnel")?;
+            let (sock_local, sock_remote) = local_stream_pair()?;
 
             let mut channel_reader = channel.clone();
             let mut channel_writer = channel.clone();
